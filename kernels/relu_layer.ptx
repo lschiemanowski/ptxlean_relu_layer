@@ -1,0 +1,63 @@
+// Launch: grid=(12,1,1), block=(256,1,1); arguments: W, x, b, y.
+// W is row-major [3072,1024]; all buffers are contiguous disjoint FP32 arrays.
+.version 8.0
+.target sm_80
+.address_size 64
+
+.visible .entry relu_layer(
+    .param .u64 W_ptr,
+    .param .u64 x_ptr,
+    .param .u64 b_ptr,
+    .param .u64 y_ptr
+)
+.reqntid 256, 1, 1
+{
+    .reg .u32 %thread, %block, %row, %j;
+    .reg .u64 %W_base, %x_read, %b_base, %y_base;
+    .reg .u64 %row_offset, %element_offset, %W_read, %b_read, %y_write;
+    .reg .f32 %w, %x, %acc, %bias, %result;
+    .reg .pred %more;
+
+    // Load generic pointers and convert them to global addresses.
+    ld.param.u64 %W_base, [W_ptr];
+    ld.param.u64 %x_read, [x_ptr];
+    ld.param.u64 %b_base, [b_ptr];
+    ld.param.u64 %y_base, [y_ptr];
+    cvta.to.global.u64 %W_base, %W_base;
+    cvta.to.global.u64 %x_read, %x_read;
+    cvta.to.global.u64 %b_base, %b_base;
+    cvta.to.global.u64 %y_base, %y_base;
+
+    // One thread owns row = block * 256 + tid.
+    mov.u32 %thread, %tid.x;
+    mov.u32 %block, %ctaid.x;
+    mad.lo.u32 %row, %block, 256, %thread;
+
+    // A weight row occupies 1024 * 4 bytes; bias/output elements occupy 4.
+    mul.wide.u32 %row_offset, %row, 4096;
+    mul.wide.u32 %element_offset, %row, 4;
+    add.u64 %W_read, %W_base, %row_offset;
+    add.u64 %b_read, %b_base, %element_offset;
+    add.u64 %y_write, %y_base, %element_offset;
+
+    mov.u32 %j, 0;
+    mov.f32 %acc, 0f00000000;
+
+DOT_LOOP:
+    // Read column j, then perform exactly one rounded fused multiply-add.
+    ld.global.f32 %w, [%W_read];
+    ld.global.f32 %x, [%x_read];
+    fma.rn.f32 %acc, %w, %x, %acc;
+    add.u64 %W_read, %W_read, 4;
+    add.u64 %x_read, %x_read, 4;
+    add.u32 %j, %j, 1;
+    setp.lt.u32 %more, %j, 1024;
+    @%more bra DOT_LOOP;
+
+    // Add bias, apply max with positive zero, and store the owned output.
+    ld.global.f32 %bias, [%b_read];
+    add.rn.f32 %acc, %acc, %bias;
+    max.f32 %result, %acc, 0f00000000;
+    st.global.f32 [%y_write], %result;
+    ret;
+}

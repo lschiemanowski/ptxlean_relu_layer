@@ -1,0 +1,11 @@
+{
+  "id": "root",
+  "parent": null,
+  "summary": [
+    "Formalize a PTX implementation of a 1024-input, 3072-output dense ReLU layer and relate its stored output to an upstream TorchLean nn.Sequential specification with explicit weights and bias.",
+    "Cover one forward layer for one input vector, with the PTX instruction forms, machine state, and execution rules required by its kernel."
+  ],
+  "realization": "partial",
+  "remaining": "The TorchLean sequential specification, explicit parameter state, real-valued evaluation, and coordinate formula are implemented and proved. The scalar FP32 kernel is assembly-checked. Lean move and low multiply-add semantics and the parameterized row-selection execution theorem are implemented. Memory instructions, loop execution, full-kernel correctness, and floating-point correspondence remain unproved.",
+  "links": []
+}

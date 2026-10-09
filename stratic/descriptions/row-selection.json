@@ -1,0 +1,89 @@
+{
+  "id": "row-selection",
+  "parent": {
+    "description": "ptx-kernel",
+    "passage": {
+      "quote": "The launch has grid dimensions `(12, 1, 1)` and block dimensions `(256, 1, 1)`.\nThread `tid.x` in block `ctaid.x` owns row `i = 256 * ctaid.x + tid.x`.\nThese 3072 threads cover the output coordinates exactly once. The `.reqntid`\ndirective fixes the block dimensions; the grid dimensions are a launch\nprecondition. The kernel has no extra-row guard."
+    }
+  },
+  "summary": [
+    "Execute two 32-bit moves and an unsigned low multiply-add through private registers and a program counter to select a thread\u2019s output row.",
+    "Prove the row formula and bound for any positive launch dimensions with at most 2^32 total threads, then specialize to the layer\u2019s 12-by-256 launch."
+  ],
+  "realization": "implemented",
+  "remaining": "",
+  "links": [
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "A thread selects its output row by executing two `mov.u32` instructions followed\nby `mad.lo.u32`. Its immutable identity supplies `%tid.x` and `%ctaid.x`; its\nmutable state contains private 32-bit registers and a program counter. Register\nnames and operands are explicit. Each instruction reads the incoming register\nstate, writes only its destination, and advances the program counter."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/Machine.lean",
+        "passage": {
+          "quote": "/-- The instruction type fixes this width; launch dimensions do not. -/\nabbrev Word32 := BitVec 32\n\n/-- Immutable special-register values supplied to one thread. -/\nstructure Identity where\n  tidX : Word32\n  ctaidX : Word32\n\n/-- Private mutable state; the PC indexes the modeled instruction fragment. -/\nstructure State (Reg : Type) where\n  regs : Reg \u2192 Word32\n  pc : Nat\n\ninductive Operand (Reg : Type) where\n  | reg (name : Reg)\n  | imm (value : Word32)\n  | tidX\n  | ctaidX\n\ndef Operand.read (id : Identity) (s : State Reg) : Operand Reg \u2192 Word32\n  | .reg r => s.regs r\n  | .imm v => v\n  | .tidX => id.tidX\n  | .ctaidX => id.ctaidX\n\n/-- Only the two unpredicated instruction forms needed for row selection. -/\ninductive Instruction (Reg : Type) where\n  | mov (dst : Reg) (src : Operand Reg)\n  | madLo (dst : Reg) (a b c : Operand Reg)\n\ndef State.write [DecidableEq Reg] (s : State Reg) (dst : Reg) (v : Word32) : State Reg :=\n  { regs := fun r => if r = dst then v else s.regs r, pc := s.pc + 1 }\n\n/-- All operands are read before the destination is updated. BitVec arithmetic wraps. -/\ndef Instruction.execute [DecidableEq Reg] (id : Identity) (s : State Reg) :\n    Instruction Reg \u2192 State Reg\n  | .mov dst src => s.write dst (src.read id s)\n  | .madLo dst a b c => s.write dst (a.read id s * b.read id s + c.read id s)\n\n/-- Fetch at the current PC; falling outside the fragment is not an instruction. -/\ndef step [DecidableEq Reg] (program : List (Instruction Reg)) (id : Identity)\n    (s : State Reg) : Option (State Reg) :=\n  (program[s.pc]?).map (fun inst => inst.execute id s)\n\n/-- Execute exactly `fuel` instructions, reporting a failed fetch as `none`. -/\ndef run [DecidableEq Reg] (program : List (Instruction Reg)) (id : Identity) :\n    Nat \u2192 State Reg \u2192 Option (State Reg)\n  | 0, s => some s\n  | fuel + 1, s => (step program id s).bind (run program id fuel)"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The launch configuration supplies positive block and thread counts. A thread's\nblock index is below the block count and its local thread index is below the\nthread count. The row-selection program uses the configured thread count as\nits multiply-add immediate. It starts at fragment-relative program counter\nzero, after the kernel's pointer-loading and conversion instructions."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/RowSelection.lean",
+        "passage": {
+          "quote": "/-- One-dimensional launch dimensions, independent of this layer's shapes. -/\nstructure Launch where\n  blocks : Nat\n  threads : Nat\n  blocks_pos : 0 < blocks\n  threads_pos : 0 < threads\n\ndef Launch.rows (cfg : Launch) : Nat := cfg.blocks * cfg.threads\n\nstructure Thread (cfg : Launch) where\n  block : Fin cfg.blocks\n  tid : Fin cfg.threads\n\ndef Thread.identity (t : Thread cfg) : Identity :=\n  \u27e8BitVec.ofNat 32 t.tid.val, BitVec.ofNat 32 t.block.val\u27e9\n\ndef Thread.row (t : Thread cfg) : Nat := cfg.threads * t.block.val + t.tid.val\n\ntheorem Thread.row_lt (t : Thread cfg) : t.row < cfg.rows := by\n  have h\u2081 := Nat.mul_le_mul_left cfg.threads (Nat.succ_le_of_lt t.block.isLt)\n  have h\u2082 := t.tid.isLt\n  simp only [Thread.row, Launch.rows, Nat.mul_succ] at *\n  rw [Nat.mul_comm cfg.blocks cfg.threads]\n  omega"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "For any initial register contents, executing the three instructions succeeds,\nleaves the program counter at three, and writes the row register. When the\ntotal thread count is at most `2^32`, its unsigned value is\n\n$$\ni = \\mathrm{threadsPerBlock}\\cdot\\mathrm{blockIndex}+\\mathrm{threadIndex},\n\\qquad 0\\le i < \\mathrm{blockCount}\\cdot\\mathrm{threadsPerBlock}.\n$$"
+      },
+      "to": {
+        "path": "ReluLayer/PTX/RowSelection.lean",
+        "passage": {
+          "quote": "/-- Ordinary register names for the selected fragment. -/\ninductive RowReg where\n  | thread | block | row\n  deriving DecidableEq\n\n/-- The stride is a program parameter, not part of multiply-add semantics. -/\ndef rowSelection (threads : Nat) : List (Instruction RowReg) :=\n  [ .mov .thread .tidX,\n    .mov .block .ctaidX,\n    .madLo .row (.reg .block) (.imm (BitVec.ofNat 32 threads)) (.reg .thread) ]\n\nprivate def finalState (cfg : Launch) (t : Thread cfg) (regs : RowReg \u2192 Word32) :\n    State RowReg :=\n  let s : State RowReg := \u27e8regs, 0\u27e9\n  let s := s.write .thread t.identity.tidX\n  let s := s.write .block t.identity.ctaidX\n  s.write .row (s.regs .block * BitVec.ofNat 32 cfg.threads + s.regs .thread)\n\nprivate theorem run_eq (cfg : Launch) (t : Thread cfg) (regs : RowReg \u2192 Word32) :\n    run (rowSelection cfg.threads) t.identity 3 \u27e8regs, 0\u27e9 =\n      some (finalState cfg t regs) := by\n  simp [run, step, rowSelection, Instruction.execute, Operand.read, State.write, finalState]\n\n/-- Executing the fragment succeeds, computes the row without wrap, and stays in range. -/\ntheorem rowSelection_correct (cfg : Launch) (hfit : cfg.rows \u2264 2 ^ 32)\n    (t : Thread cfg) (regs : RowReg \u2192 Word32) :\n    \u2203 s, run (rowSelection cfg.threads) t.identity 3 \u27e8regs, 0\u27e9 = some s \u2227\n      s.pc = 3 \u2227 (s.regs .row).toNat = t.row \u2227 (s.regs .row).toNat < cfg.rows := by\n  have hrow : ((finalState cfg t regs).regs .row).toNat = t.row := by\n    simp only [finalState, State.write, Thread.identity,\n      reduceCtorEq, \u2193reduceIte, BitVec.ofNat_mul_ofNat,\n      BitVec.ofNat_add_ofNat, BitVec.toNat_ofNat]\n    rw [Nat.mul_comm t.block.val cfg.threads]\n    exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le t.row_lt hfit)\n  exact \u27e8finalState cfg t regs, run_eq cfg t regs, rfl, hrow, by rw [hrow]; exact t.row_lt\u27e9"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The concrete layer launch has 12 blocks and 256 threads per block, hence 3072\nrows. Its three-instruction program corresponds to the row-selection fragment\nin `kernels/relu_layer.ptx`. Source correspondence is checked by comparing the\nrendered formal instructions and configured launch against the PTX file; the\ncomparison is an executable check, rather than a proved PTX parser.\n"
+      },
+      "to": {
+        "path": "ReluLayer/PTX/RowSelection.lean",
+        "passage": {
+          "quote": "/-- The sole choice of launch counts for the current concrete kernel. -/\ndef layerLaunch : Launch := \u27e812, 256, by decide, by decide\u27e9\n\ntheorem layerLaunch_rows : layerLaunch.rows = 3072 := rfl\n\ntheorem layer_rowSelection_correct (t : Thread layerLaunch) (regs : RowReg \u2192 Word32) :\n    \u2203 s, run (rowSelection layerLaunch.threads) t.identity 3 \u27e8regs, 0\u27e9 = some s \u2227\n      s.pc = 3 \u2227 (s.regs .row).toNat = t.row \u2227 (s.regs .row).toNat < 3072 :=\n  rowSelection_correct layerLaunch (by decide) t regs"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The concrete layer launch has 12 blocks and 256 threads per block, hence 3072\nrows. Its three-instruction program corresponds to the row-selection fragment\nin `kernels/relu_layer.ptx`. Source correspondence is checked by comparing the\nrendered formal instructions and configured launch against the PTX file; the\ncomparison is an executable check, rather than a proved PTX parser.\n"
+      },
+      "to": {
+        "path": "checks/RowSelection.lean",
+        "passage": {
+          "quote": "private def regName : RowReg \u2192 String\n  | .thread => \"%thread\"\n  | .block => \"%block\"\n  | .row => \"%row\"\n\nprivate def operandText : Operand RowReg \u2192 String\n  | .reg r => regName r\n  | .imm v => toString v.toNat\n  | .tidX => \"%tid.x\"\n  | .ctaidX => \"%ctaid.x\"\n\nprivate def instructionText : Instruction RowReg \u2192 String\n  | .mov dst src => s!\"mov.u32 {regName dst}, {operandText src};\"\n  | .madLo dst a b c =>\n      s!\"mad.lo.u32 {regName dst}, {operandText a}, {operandText b}, {operandText c};\"\n\nprivate def requireOnce (source expected : String) : IO Unit := do\n  unless (source.splitOn expected).length == 2 do\n    throw (IO.userError s!\"Expected exactly one source passage:\\n{expected}\")\n\n/-- A source comparison for this fragment, not a general or verified PTX parser. -/\ndef main (args : List String) : IO Unit := do\n  let path := args.headD \"kernels/relu_layer.ptx\"\n  let source \u2190 IO.FS.readFile path\n  let normalized := String.intercalate \"\\n\"\n    ((source.splitOn \"\\n\").map (fun line => line.trimAscii.toString))\n  let expected := String.intercalate \"\\n\"\n    ((rowSelection layerLaunch.threads).map instructionText)\n  requireOnce normalized expected\n  requireOnce normalized s!\".reqntid {layerLaunch.threads}, 1, 1\\n\"\n  requireOnce normalized\n    s!\"// Launch: grid=({layerLaunch.blocks},1,1), block=({layerLaunch.threads},1,1); arguments: W, x, b, y.\\n\"\n  IO.println \"Row-selection instructions, required block size, and documented grid match the formal configuration.\""
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "`mov.u32` copies a 32-bit operand. `mad.lo.u32` multiplies two unsigned 32-bit\noperands, keeps the low 32 bits, and adds its third operand modulo `2^32`.\nThese rules apply to arbitrary operand values and destination registers,\nincluding a destination that is also a source. The definitions follow NVIDIA's\n[move](https://docs.nvidia.com/cuda/archive/12.0.1/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-mov) and\n[integer multiply-add](https://docs.nvidia.com/cuda/archive/12.0.1/parallel-thread-execution/index.html#integer-arithmetic-instructions-mad)\ninstruction descriptions."
+      },
+      "to": {
+        "path": "checks/RowSelection.lean",
+        "passage": {
+          "quote": "-- Aliasing uses the old source value; multiplication and addition both wrap.\nprivate def aliasState : State Nat := \u27e8fun r => if r = 0 then 4294967295 else 17, 7\u27e9\nprivate def aliasResult : State Nat :=\n  (Instruction.madLo 0 (.reg 0) (.imm 2) (.imm 3)).execute \u27e80, 0\u27e9 aliasState\n\nexample : (aliasResult.regs 0).toNat = 1 := by decide\nexample : (aliasResult.regs 1).toNat = 17 := by decide\nexample : aliasResult.pc = 8 := by decide\nexample : ((Instruction.mov 0 (.reg 0)).execute \u27e80, 0\u27e9 aliasState).regs 0 =\n    aliasState.regs 0 := by decide\n\n-- Fetching outside the fragment fails; exhaustion of fuel alone succeeds.\nexample : step (rowSelection 5) \u27e80, 0\u27e9 \u27e8fun _ => 0, 3\u27e9 = none := by decide\nexample : (run (rowSelection 5) \u27e80, 0\u27e9 0 \u27e8fun _ => 0, 3\u27e9).isSome = true := by decide\n\n-- The arithmetic theorem specializes to launch counts other than the layer's.\nexample (t : Thread \u27e87, 5, by decide, by decide\u27e9) (regs : RowReg \u2192 Word32) :\n    \u2203 s, run (rowSelection 5) t.identity 3 \u27e8regs, 0\u27e9 = some s \u2227\n      s.pc = 3 \u2227 (s.regs .row).toNat = t.row \u2227 (s.regs .row).toNat < 35 :=\n  rowSelection_correct _ (by decide) t regs\n\n#print axioms Thread.row_lt\n#print axioms rowSelection_correct\n#print axioms layerLaunch_rows\n#print axioms layer_rowSelection_correct"
+        }
+      }
+    }
+  ]
+}

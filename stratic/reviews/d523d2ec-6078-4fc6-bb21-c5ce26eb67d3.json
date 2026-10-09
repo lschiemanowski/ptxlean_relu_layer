@@ -1,0 +1,130 @@
+{
+  "id": "d523d2ec-6078-4fc6-bb21-c5ce26eb67d3",
+  "base": "2dd14e2a058285c0e1686927667a5a51c22d31de",
+  "contentTree": "ad3607e0bafcd9e35ef78ebd65866cbc53d55423",
+  "reviewer": "Codex",
+  "summary": "Specify and prove the dense ReLU layer and row selection, with reusable PTX machine definitions in a separate module",
+  "examined": [
+    {
+      "id": "root",
+      "outcome": "revised",
+      "reason": "Reviewed the cumulative project contract: the real TorchLean layer is proved, PTX source is assembly-checked, and parameterized row-selection execution is now proved; memory, loop, complete-kernel and numerical correspondence remain unfinished."
+    },
+    {
+      "id": "sequential-specification",
+      "outcome": "revised",
+      "reason": "Reviewed the cumulative initial child and exact source links against the unchanged architecture, state layout, supplied parameters, evaluation-mode forward program, and standalone pinned package. The new real-forward child depends on precisely this interface."
+    },
+    {
+      "id": "real-forward",
+      "outcome": "revised",
+      "reason": "Reviewed the new pure real-valued interpreter, successful evaluation theorem, total output extraction, tensor identity, and universal coordinate theorem against all 93 source lines. The theorem follows from the actual sequential model under the upstream SpecM backend, with no independently authored graph or assumed result. Axiom audits exclude unfinished proofs."
+    },
+    {
+      "id": "ptx-kernel",
+      "outcome": "revised",
+      "reason": "Reviewed the unchanged assembly-checked PTX, its contract and exact source links. The new row-selection child formalizes the moves and low multiply-add with register updates and an explicit launch configuration; remaining instruction and full-kernel boundaries are recorded."
+    },
+    {
+      "id": "row-selection",
+      "outcome": "revised",
+      "reason": "Reviewed the cumulative row-selection contract against the split 55-line Machine and 77-line RowSelection modules and unchanged 63-line checker. All declaration bodies and theorem statements are byte-identical to the previously checked single module. RowSelection imports the generic machine, keeps launch indexing and row proofs together, and remains the public entry point. The source link to moved definitions now resolves to Machine.lean. Existing runtime checks and theorem axiom audits pass after rebuilding."
+    }
+  ],
+  "unresolved": [],
+  "results": [
+    {
+      "tree": "ad3607e0bafcd9e35ef78ebd65866cbc53d55423",
+      "method": "LEAN_NUM_THREADS=1 lake build; lake env lean --run checks/RowSelection.lean; byte comparison of all moved declaration bodies and unchanged sources against prior checked snapshot; stratic validate; git diff --check",
+      "outcome": "pass",
+      "environment": "Linux x86_64, Lean 4.34.0, pinned TorchLean/mathlib dependencies, one Lean worker, offline cached build",
+      "evidence": "Build succeeded (3060 jobs), including Machine, RowSelection and library entry point. Existing Lean semantic edge cases and alternative launch specialization checked successfully. Public theorem audits retain only propext and Quot.sound; the concrete row-count theorem is axiom-free. Formal instructions, required block size and documented grid match the PTX source. Machine and RowSelection declaration bodies concatenate byte-for-byte to the prior single-file body; all other Lean code, checker, PTX and package pins are unchanged. Stratic validation has zero issues and whitespace check is clean. Before/after snapshots match. This is a file-organization change; existing full-kernel and numerical proof limitations remain.",
+      "tests": [],
+      "id": "1b61d2d5-019a-4685-8322-b9c3729beef8",
+      "recordedAt": "2026-10-09T12:24:24.923Z"
+    }
+  ],
+  "recordedAt": "2026-10-09T12:24:45.452Z",
+  "unmapped": [
+    {
+      "path": "README.md",
+      "reason": "Reviewed the separate Machine and RowSelection links and responsibilities, existing checking commands and remaining proof limitations."
+    },
+    {
+      "path": "ReluLayer.lean",
+      "reason": "Reviewed the library entry point adding the row-selection module to the existing specification and real-forward imports."
+    },
+    {
+      "path": "ReluLayer/Specification.lean",
+      "reason": "All definitions and the shape theorem are linked; reviewed the remaining import, namespace, open, and closing lines."
+    },
+    {
+      "path": "lake-manifest.json",
+      "reason": "Reviewed the pinned transitive dependency manifest; verified all 16 clean cache revisions, project name, and absence of a PTXLean entry."
+    },
+    {
+      "path": "lean-toolchain",
+      "reason": "Reviewed the Lean 4.34.0 pin and verified the resolved compiler version."
+    },
+    {
+      "path": "stratic/descriptions/root.json",
+      "reason": "Reviewed accurate cumulative realization status including proved row-selection execution and remaining full-kernel work."
+    },
+    {
+      "path": "stratic/descriptions/root.md",
+      "reason": "Reviewed the initial root against the user-requested map, dimensions, nn.Sequential specification, explicit parameters, and single-layer scope; process metadata is absent."
+    },
+    {
+      "path": "stratic/descriptions/sequential-specification.json",
+      "reason": "Reviewed the child summary, implemented contract, parent passage, and exact implementation source links."
+    },
+    {
+      "path": "stratic/descriptions/sequential-specification.md",
+      "reason": "Reviewed the new responsibility against the architecture, state constructor, forward program, and package configuration."
+    },
+    {
+      "path": "stratic/project.json",
+      "reason": "Reviewed the formatVersion 1 project configuration with repository-wide scope and no exclusions."
+    },
+    {
+      "path": "ReluLayer/RealForward.lean",
+      "reason": "Meaningful definitions, proof helpers, and public theorems have resolved links. Reviewed the remaining namespace, opens, noncomputable section, blank lines, and closing scopes."
+    },
+    {
+      "path": "stratic/descriptions/real-forward.json",
+      "reason": "Reviewed the new summary, implemented status, parent passage, dependency reason, and exact implementation links."
+    },
+    {
+      "path": "stratic/descriptions/real-forward.md",
+      "reason": "Reviewed the pure backend interpretation, success and parameter contract, affine normalization, and coordinate equality against the checked source."
+    },
+    {
+      "path": "stratic/descriptions/ptx-kernel.md",
+      "reason": "Reviewed the new kernel contract, arithmetic and memory conditions, register roles, exact instruction table, and authoritative archived PTX source references."
+    },
+    {
+      "path": "stratic/descriptions/ptx-kernel.json",
+      "reason": "Reviewed the added row-selection summary, partial realization, source links, and remaining instruction/full-kernel limitations."
+    },
+    {
+      "path": "ReluLayer/PTX/RowSelection.lean",
+      "reason": "Reviewed the new Machine import and unchanged launch/indexing definitions, fragment program, proofs and concrete configuration; linked all meaningful declaration passages."
+    },
+    {
+      "path": "checks/RowSelection.lean",
+      "reason": "Linked semantic edge cases, alternative launch specialization, theorem audits, renderer, and source-checking main. Reviewed the remaining import and namespace open."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.md",
+      "reason": "Reviewed the instruction and machine-state behavior, launch parameters, execution theorem, concrete launch and explicitly executable source-correspondence boundary against checked code."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.json",
+      "reason": "Reviewed unchanged behavioral summaries and implemented status, with the generic execution source passage now linked to Machine.lean; all other links remain valid."
+    },
+    {
+      "path": "ReluLayer/PTX/Machine.lean",
+      "reason": "The moved machine declarations have an exact implementation passage link. Reviewed import, namespace and closing lines; body is byte-identical to the prior module section."
+    }
+  ]
+}

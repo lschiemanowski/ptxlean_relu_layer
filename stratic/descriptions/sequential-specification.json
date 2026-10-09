@@ -1,0 +1,64 @@
+{
+  "id": "sequential-specification",
+  "parent": {
+    "description": "root",
+    "passage": {
+      "quote": "The specification is authored using upstream TorchLean's `nn.Sequential`, with\na linear layer from shape `[1024]` to `[3072]` followed by ReLU."
+    }
+  },
+  "summary": [
+    "Define the upstream TorchLean sequential linear/ReLU architecture, its explicit weight-then-bias state, and its evaluation-mode forward program from shape [1024] to [3072]."
+  ],
+  "realization": "implemented",
+  "remaining": "",
+  "links": [
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The layer's architecture is an upstream TorchLean `nn.Sequential [1024] [3072]`\ncontaining `nn.linear 1024 3072` followed by `nn.relu`. The linear layer owns a\nweight tensor of shape `[3072, 1024]` and a bias tensor of shape `[3072]`. ReLU\nhas no parameter state."
+      },
+      "to": {
+        "path": "ReluLayer/Specification.lean",
+        "passage": {
+          "quote": "/-- A linear layer with bias, followed by elementwise ReLU. -/\ndef architecture : nn.Builder (nn.Sequential [1024] [3072]) :=\n  nn.Sequential![\n    nn.linear 1024 3072,\n    nn.relu\n  ]\n\n/-- Build the architecture; forward evaluation receives its parameters separately. -/\ndef model : nn.Sequential [1024] [3072] :=\n  nn.build 0 architecture"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The model's state layout is therefore `[[3072, 1024], [3072]]`, in weight-then-bias\norder. An explicit parameter state contains the supplied weights and bias.\nThese tensors can have any values of the selected scalar type; they are not\nrestricted to the builder's initialization."
+      },
+      "to": {
+        "path": "ReluLayer/Specification.lean",
+        "passage": {
+          "quote": "/-- The linear layer owns weights and bias, in that order; ReLU adds no state. -/\ntheorem state_shapes : nn.stateShapes model = [[3072, 1024], [3072]] := by\n  rfl\n\n/-- Supply arbitrary weights and bias instead of using initialized model state. -/\ndef parameters {\u03b1 : Type} [Storage \u03b1]\n    (W : Tensor \u03b1 [3072, 1024]) (b : Tensor \u03b1 [3072]) :\n    nn.State \u03b1 (nn.stateShapes model) :=\n  (nn.State.empty.push W).push b"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The evaluation-mode forward program takes the weights, bias, and input in that\norder, and returns a tensor of shape `[3072]`. It uses the sequential model's\nupstream forward program. Tensor operations are interpreted by the supplied\nTorchLean operation backend."
+      },
+      "to": {
+        "path": "ReluLayer/Specification.lean",
+        "passage": {
+          "quote": "/-- The upstream sequential forward program takes W, b, and x and returns y. -/\ndef forwardProgram {\u03b1 : Type} [Storage \u03b1] [Context \u03b1] :\n    Runtime.Autograd.Model.Program \u03b1 [[3072, 1024], [3072], [1024]] [3072] :=\n  model.forward .eval"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The Lean package pins TorchLean and its transitive dependencies and contains no\ndependency on the PTXLean package."
+      },
+      "to": {
+        "path": "lakefile.toml",
+        "passage": {
+          "quote": "name = \"ptxlean_relu_layer\"\nversion = \"0.1.0\"\ndefaultTargets = [\"ReluLayer\"]\n\n[[require]]\nname = \"TorchLean\"\ngit = \"https://github.com/lean-dojo/TorchLean.git\"\nrev = \"de3192df4779877ceb65cfe470a4d4ce9d480a5b\"\n\n[[lean_lib]]\nname = \"ReluLayer\"\nmoreLeanArgs = [\"-M5120\"]"
+        }
+      }
+    }
+  ]
+}
