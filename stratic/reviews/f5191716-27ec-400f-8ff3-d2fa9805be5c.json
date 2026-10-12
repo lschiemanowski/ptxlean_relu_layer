@@ -1,0 +1,34 @@
+{
+  "id": "f5191716-27ec-400f-8ff3-d2fa9805be5c",
+  "base": "42db06771ee955c58be312a29192b1dfaa3750cf",
+  "contentTree": "4fdd6fa9ea7ec52a4e9862638e8337fe646c77a9",
+  "reviewer": "Codex",
+  "summary": "Explain the dense ReLU project from the Torch architecture through its TorchLean specification, PTX blocks, stored-output theorem, execution model and individual block proofs",
+  "examined": [
+    {
+      "id": "root",
+      "outcome": "unchanged",
+      "reason": "Only README prose and organization change. The existing project description and linked implementation already state the Sequential target, per-thread stored-output contract and proof boundaries accurately; no contract, definition or theorem changes."
+    }
+  ],
+  "unresolved": [],
+  "results": [
+    {
+      "tree": "4fdd6fa9ea7ec52a4e9862638e8337fe646c77a9",
+      "method": "git diff --check; one-off Python checks for README local links, verbatim Lean quotes, example syntax, section order, theorem/file pairs and PTX line boundaries; stratic validate; manual source review",
+      "outcome": "pass",
+      "environment": "Documentation-only change on 42db067; Python 3 and installed Stratic; Lean implementation, dependencies and PTX source unchanged",
+      "evidence": "All commands exited zero. Verified 22 local links, exact architecture and main-theorem source quotations, Python example syntax, sections 1 through 5, five block theorem/file pairs and PTX block boundaries. Stratic reports valid=true with no issues. Manually checked the real Sequential interpretation, KernelEntry, finite-row assumptions, word-memory model, FloatLib arithmetic, block contracts and per-thread proof boundaries against source. Before/after snapshots both equal the recorded tree. No Lean build or Python runtime execution claimed for this documentation-only pass.",
+      "tests": [],
+      "id": "5080ae1d-19f3-4083-8823-ab2b5bad63ea",
+      "recordedAt": "2026-10-12T08:21:12.121Z"
+    }
+  ],
+  "recordedAt": "2026-10-12T08:21:46.319Z",
+  "unmapped": [
+    {
+      "path": "README.md",
+      "reason": "The README is reader orientation rather than an implementation resource. Reviewed its new architecture examples, PTX block table, verbatim main theorem, model explanation, theorem/file index and retained build instructions against source. All local links and source quotations are checked. It intentionally has no incoming description or test passage link."
+    }
+  ]
+}
