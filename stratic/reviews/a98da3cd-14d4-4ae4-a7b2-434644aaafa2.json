@@ -1,0 +1,34 @@
+{
+  "id": "a98da3cd-14d4-4ae4-a7b2-434644aaafa2",
+  "base": "0ba1bf5408952ad88f9095716bb097bd252a8a51",
+  "contentTree": "0161e3d40f2504374519aef694e5e59fa760c777",
+  "reviewer": "Codex",
+  "summary": "Walk through the actual PTX kernel in README section 2 with interleaved source excerpts and explanations",
+  "examined": [
+    {
+      "id": "root",
+      "outcome": "unchanged",
+      "reason": "The README now quotes and explains existing instructions block by block. The kernel, specification, theorem assumptions, proof scope and Stratic descriptions remain unchanged."
+    }
+  ],
+  "unresolved": [],
+  "results": [
+    {
+      "tree": "0161e3d40f2504374519aef694e5e59fa760c777",
+      "method": "git diff --check; one-off Python verification of exact PTX excerpts, complete ordered instruction coverage, local links and section-only changes; stratic validate; manual review against kernel and machine definitions",
+      "outcome": "pass",
+      "environment": "README-only edit on 0ba1bf5; Python 3; installed Stratic; kernel, Lean code and dependencies unchanged",
+      "evidence": "All checks exit zero: six verbatim PTX excerpts cover all 31 executable instructions in source order and include DOT_LOOP; 22 local links exist; text outside section 2 is unchanged. Stratic validation reports no issues. Reviewed descriptions of generic pointer conversion, row selection, byte offsets, single-rounding ordered FMA, loop control and bias/ReLU/store against source and the established finite per-thread contract. Before/after snapshots match. No Lean rebuild, PyTorch run or GPU execution claimed.",
+      "tests": [],
+      "id": "918d2457-6835-489f-9783-934b8092aaf8",
+      "recordedAt": "2026-10-12T08:34:31.899Z"
+    }
+  ],
+  "recordedAt": "2026-10-12T08:35:01.252Z",
+  "unmapped": [
+    {
+      "path": "README.md",
+      "reason": "Reader-facing documentation with no incoming description or test links. Reviewed the section-2 rewrite against the unchanged PTX source; all executable instructions and the loop label appear verbatim in source order, with explanations preserving the existing finite per-thread scope. Other README sections are unchanged."
+    }
+  ]
+}

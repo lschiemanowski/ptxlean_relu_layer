@@ -61,21 +61,111 @@ particular PyTorch floating-point backend.
 thread. The launch has 12 blocks of 256 threads, covering all 3072 rows.
 Weights are row-major FP32 words; the four pointer arguments are `W`, `x`, `b`
 and `y`. Each thread reads its weight row and the input vector, then writes one
-output word.
+output word. The following excerpts contain every executable instruction in
+the kernel, in source order.
 
-| Block | PTX lines | Instructions and purpose |
-| --- | --- | --- |
-| 1. Load base addresses | 22–29 | Four `ld.param.u64` loads followed by four `cvta.to.global.u64` conversions supply the global buffer bases. |
-| 2. Select the row | 32–34 | Two `mov.u32` instructions read `%tid.x` and `%ctaid.x`; `mad.lo.u32` computes `i = block * 256 + tid`. |
-| 3. Compute data addresses | 37–41 | Two `mul.wide.u32` instructions compute the weight-row offset `i * 4096` and element offset `i * 4`; three `add.u64` instructions form the row, bias and output pointers. The input pointer already addresses `x[0]`. |
-| 4a. Compute the dot product | 43–55 | Initialize column zero and a positive-zero accumulator. Each iteration loads `W[i,j]` and `x[j]`, performs one `fma.rn.f32`, advances both pointers and the column, then branches while `j < 1024`. |
-| 4b. Add bias, apply ReLU and store | 58–62 | `ld.global.f32` loads `b[i]`; `add.rn.f32` adds it; `max.f32` takes the maximum with positive zero; `st.global.f32` writes `y[i]`; `ret` ends execution. |
+### Block 1: load base addresses (lines 22–29)
 
-Block 4 is split into the loop and its suffix so that the two computations can
-be understood and proved separately. The accumulation order is explicit:
-start at positive zero, use one rounded fused multiply-add per column in order,
-then one rounded bias addition. The real-valued specification and this rounded
-computation are connected by an error bound.
+```ptx
+    ld.param.u64 %W_base, [W_ptr];
+    ld.param.u64 %x_read, [x_ptr];
+    ld.param.u64 %b_base, [b_ptr];
+    ld.param.u64 %y_base, [y_ptr];
+    cvta.to.global.u64 %W_base, %W_base;
+    cvta.to.global.u64 %x_read, %x_read;
+    cvta.to.global.u64 %b_base, %b_base;
+    cvta.to.global.u64 %y_base, %y_base;
+```
+
+`ld.param.u64` reads the four pointer arguments from parameter slots into
+64-bit registers. `cvta.to.global.u64` converts each generic pointer to an
+address in global memory. After this block, `%W_base`, `%x_read`, `%b_base`
+and `%y_base` address the beginnings of their respective buffers. `%x_read`
+will advance through the input vector during the loop.
+
+### Block 2: select the output row (lines 32–34)
+
+```ptx
+    mov.u32 %thread, %tid.x;
+    mov.u32 %block, %ctaid.x;
+    mad.lo.u32 %row, %block, 256, %thread;
+```
+
+`%tid.x` is the thread's index within its block, and `%ctaid.x` is the block's
+index within the grid. `mad.lo.u32` multiplies the block index by 256 and adds
+the thread index, keeping the low 32 bits. For this launch the result fits:
+`i = block * 256 + tid` ranges from 0 to 3071. `%row` therefore identifies the
+single output coordinate owned by this thread.
+
+### Block 3: compute data addresses (lines 37–41)
+
+```ptx
+    mul.wide.u32 %row_offset, %row, 4096;
+    mul.wide.u32 %element_offset, %row, 4;
+    add.u64 %W_read, %W_base, %row_offset;
+    add.u64 %b_read, %b_base, %element_offset;
+    add.u64 %y_write, %y_base, %element_offset;
+```
+
+Each FP32 element occupies four bytes, so a weight row occupies
+`1024 * 4 = 4096` bytes. `mul.wide.u32` produces the 64-bit offsets
+`i * 4096` and `i * 4`. Adding these to the buffer bases places `%W_read`
+at `W[i,0]`, `%b_read` at `b[i]`, and `%y_write` at `y[i]`. `%x_read` already
+points to `x[0]` and needs no row offset.
+
+### Block 4a: compute the dot product (lines 43–55)
+
+```ptx
+    mov.u32 %j, 0;
+    mov.f32 %acc, 0f00000000;
+```
+
+The loop starts at column zero with a positive-zero accumulator.
+`0f00000000` is the FP32 bit-pattern literal for positive zero.
+
+```ptx
+DOT_LOOP:
+    // Read column j, then perform exactly one rounded fused multiply-add.
+    ld.global.f32 %w, [%W_read];
+    ld.global.f32 %x, [%x_read];
+    fma.rn.f32 %acc, %w, %x, %acc;
+    add.u64 %W_read, %W_read, 4;
+    add.u64 %x_read, %x_read, 4;
+    add.u32 %j, %j, 1;
+    setp.lt.u32 %more, %j, 1024;
+    @%more bra DOT_LOOP;
+```
+
+The two loads read the current weight and input element. `fma.rn.f32`
+computes `W[i,j] * x[j] + acc` with one final rounding to nearest, ties to even;
+it does not round the product separately. The pointer increments move to the
+next FP32 elements, and `%j` advances by one. `setp.lt.u32` sets `%more`
+when the updated column is below 1024; `@%more bra` jumps back to `DOT_LOOP`
+only when that predicate is true.
+
+The loop visits columns 0 through 1023 in order. On exit, `%j` is 1024 and
+`%acc` holds the ordered rounded dot product. No memory has been written.
+
+### Block 4b: add bias, apply ReLU and store (lines 58–62)
+
+```ptx
+    ld.global.f32 %bias, [%b_read];
+    add.rn.f32 %acc, %acc, %bias;
+    max.f32 %result, %acc, 0f00000000;
+    st.global.f32 [%y_write], %result;
+    ret;
+```
+
+The bias load reads `b[i]` from the address computed in block 3.
+`add.rn.f32` adds it to the completed accumulator, again rounding to nearest,
+ties to even. `max.f32` takes the maximum with positive zero, implementing
+ReLU for the finite values covered by the main theorem. The store writes
+that result to `y[i]`, and `ret` ends this thread's execution.
+
+The loop and this suffix have separate theorems. Together they establish the
+precise computation: an ordered sequence of rounded FMAs, a rounded bias
+addition, and a positive-zero maximum. The next section connects the stored
+result to the real-valued Sequential specification with an error bound.
 
 ## 3. The main theorem: stored output versus Sequential
 
