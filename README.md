@@ -4,6 +4,12 @@ A minimal Lean formalization connecting a scalar FP32 PTX kernel to a
 TorchLean `nn.Sequential` specification of one dense ReLU layer:
 1024 inputs, 3072 outputs, and arbitrary weights and bias.
 
+This is a focused companion to
+[PTXLean](https://github.com/lschiemanowski/ptxlean), the more ambitious project
+covering broader PTX semantics and connections to TorchLean programs. PTXLean
+is currently somewhat disorganized; this project isolates one layer to make its
+specification, execution model and correctness statement easier to follow.
+
 ## 1. From Torch to the TorchLean specification
 
 The familiar Torch implementation is:
@@ -291,39 +297,14 @@ modules are outside the main import chain.
 
 ## Build and checks
 
-With [elan](https://github.com/leanprover/elan) installed, build with:
+With [elan](https://github.com/leanprover/elan) and Python 3 installed, check the
+main theorem with one command from the repository root:
 
 ```sh
-lake update
-python3 scripts/prepare_dependencies.py
-LEAN_NUM_THREADS=4 lake build
+python3 scripts/check_main_theorem.py
 ```
 
-The project pins Lean 4.35.0-rc4, TorchLean, FloatLib and matching transitive
-packages. `prepare_dependencies.py` applies four checked compatibility edits to
-isolated package checkouts; it is idempotent, verifies exact revisions and source
-contents, and preserves arithmetic definitions. Project contracts and exact
-source links are maintained in [Stratic](stratic/descriptions/root.md).
-
-Run the theorem audits, contract edge cases, arithmetic oracles and source
-correspondence checks with:
-
-```sh
-lake build ReluLayer.PTX.Optional.AddressBounds ReluLayer.PTX.Optional.Separation
-lake env lean --run checks/RowSelection.lean
-lake env lean --run checks/AddressCalculation.lean
-lake env lean --run checks/BaseLoading.lean
-lake env lean --run checks/BodyContract.lean
-lake env lean --run checks/DotLoop.lean
-lake env lean --run checks/ReluSuffix.lean
-lake env lean --run checks/BodyExecution.lean
-lake env lean --run checks/KernelExecution.lean
-lake env lean --run checks/FloatArithmetic.lean
-lake env lean --run checks/RealDecode.lean
-lake env lean --run checks/RoundingError.lean
-lake env lean --run checks/SequentialBridge.lean
-```
-
-With the CUDA toolkit installed, `ptxas -arch=sm_80 -v
-kernels/relu_layer.ptx -o /tmp/relu-layer-sm80.cubin` checks assembly for the
-declared target. It does not execute the kernel.
+The script prepares the pinned dependencies, builds
+`ReluLayer.SequentialBridge` and its proof dependencies, and runs the
+Sequential bridge checks, including printing the main theorem's axioms.
+The project uses Lean 4.35.0-rc4. No CUDA toolkit or GPU is required.

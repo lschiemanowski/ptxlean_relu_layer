@@ -1,0 +1,38 @@
+{
+  "id": "19e864c4-12eb-4668-8372-2588631ba7ea",
+  "base": "77aa3da9dd11bcdd8a71874b2cfcfe1459524bbf",
+  "contentTree": "182304acd78f4b22063dddf7e3ba30813d74cbc5",
+  "reviewer": "Codex",
+  "summary": "Introduce the broader PTXLean project and provide one command to prepare dependencies, build the main Sequential theorem and run its bridge checks",
+  "examined": [
+    {
+      "id": "root",
+      "outcome": "unchanged",
+      "reason": "The README adds project context and a simpler verification entry point. The new script invokes existing guarded dependency preparation, the existing SequentialBridge build target and existing bridge checks. All formal definitions, theorem statements, computation and numerical/hardware boundaries remain unchanged."
+    }
+  ],
+  "unresolved": [],
+  "results": [
+    {
+      "tree": "182304acd78f4b22063dddf7e3ba30813d74cbc5",
+      "method": "python3 scripts/check_main_theorem.py; git diff --check; README command/link checks; stratic validate",
+      "outcome": "pass",
+      "environment": "Lean 4.35.0-rc4 / Lake 5.0.0, Python 3, pinned prepared local dependencies on 77aa3da; existing cached artifacts; no CUDA or GPU",
+      "evidence": "The advertised command exited zero. Compatibility preparation confirmed the four expected fixes; ReluLayer.SequentialBridge build completed successfully (3110 jobs); checks/SequentialBridge.lean elaborated and ran, with exactRowResult_eq_forward and layer_kernel_forward_abs_error_le reporting only propext, Classical.choice and Quot.sound. Existing dependency/module warnings remain. README has exactly one command in Build and checks, the PTXLean introduction URL matches the sibling origin, and local links exist. git diff --check and Stratic validation pass. Before/after snapshots match. Dependency fetching in an empty checkout was not exercised.",
+      "tests": [],
+      "id": "e0bbce4d-3863-4bcd-82ed-df419875eb3e",
+      "recordedAt": "2026-10-12T12:12:14.816Z"
+    }
+  ],
+  "recordedAt": "2026-10-12T12:12:37.786Z",
+  "unmapped": [
+    {
+      "path": "README.md",
+      "reason": "Reader-facing project context and invocation instructions; no incoming description/test links. Reviewed the PTXLean URL against the sibling origin and executed the exact sole advertised check command."
+    },
+    {
+      "path": "scripts/check_main_theorem.py",
+      "reason": "Small verification entry point invoking existing dependency preparation, build and bridge checker in the project root. Reviewed subprocess argument handling, environment propagation and failure behavior; executed successfully against the pinned local checkout. No formal implementation contract changes."
+    }
+  ]
+}
