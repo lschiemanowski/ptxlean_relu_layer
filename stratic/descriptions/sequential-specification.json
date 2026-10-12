@@ -7,7 +7,8 @@
     }
   },
   "summary": [
-    "Define the upstream TorchLean sequential linear/ReLU architecture, its explicit weight-then-bias state, and its evaluation-mode forward program from shape [1024] to [3072]."
+    "Define the upstream TorchLean sequential linear/ReLU architecture, its explicit weight-then-bias state, and its evaluation-mode forward program from shape [1024] to [3072].",
+    "Use the same named concrete input and output dimensions in the Sequential architecture and selected PTX layout/launch."
   ],
   "realization": "implemented",
   "remaining": "",
@@ -20,7 +21,7 @@
       "to": {
         "path": "ReluLayer/Specification.lean",
         "passage": {
-          "quote": "/-- A linear layer with bias, followed by elementwise ReLU. -/\ndef architecture : nn.Builder (nn.Sequential [1024] [3072]) :=\n  nn.Sequential![\n    nn.linear 1024 3072,\n    nn.relu\n  ]\n\n/-- Build the architecture; forward evaluation receives its parameters separately. -/\ndef model : nn.Sequential [1024] [3072] :=\n  nn.build 0 architecture"
+          "quote": "/-- A linear layer with bias, followed by elementwise ReLU. -/\ndef architecture : nn.Builder (nn.Sequential [inputSize] [outputSize]) :=\n  nn.Sequential![\n    nn.linear inputSize outputSize,\n    nn.relu\n  ]\n\n/-- Build the architecture; forward evaluation receives its parameters separately. -/\ndef model : nn.Sequential [inputSize] [outputSize] :=\n  nn.build 0 architecture"
         }
       }
     },
@@ -32,7 +33,7 @@
       "to": {
         "path": "ReluLayer/Specification.lean",
         "passage": {
-          "quote": "/-- The linear layer owns weights and bias, in that order; ReLU adds no state. -/\ntheorem state_shapes : nn.stateShapes model = [[3072, 1024], [3072]] := by\n  rfl\n\n/-- Supply arbitrary weights and bias instead of using initialized model state. -/\ndef parameters {\u03b1 : Type} [Storage \u03b1]\n    (W : Tensor \u03b1 [3072, 1024]) (b : Tensor \u03b1 [3072]) :\n    nn.State \u03b1 (nn.stateShapes model) :=\n  (nn.State.empty.push W).push b"
+          "quote": "/-- The linear layer owns weights and bias, in that order; ReLU adds no state. -/\ntheorem state_shapes : nn.stateShapes model = [[outputSize, inputSize], [outputSize]] := by\n  rfl\n\n/-- Supply arbitrary weights and bias instead of using initialized model state. -/\ndef parameters {\u03b1 : Type} [Storage \u03b1]\n    (W : Tensor \u03b1 [outputSize, inputSize]) (b : Tensor \u03b1 [outputSize]) :\n    nn.State \u03b1 (nn.stateShapes model) :=\n  (nn.State.empty.push W).push b"
         }
       }
     },
@@ -44,7 +45,7 @@
       "to": {
         "path": "ReluLayer/Specification.lean",
         "passage": {
-          "quote": "/-- The upstream sequential forward program takes W, b, and x and returns y. -/\ndef forwardProgram {\u03b1 : Type} [Storage \u03b1] [Context \u03b1] :\n    Runtime.Autograd.Model.Program \u03b1 [[3072, 1024], [3072], [1024]] [3072] :=\n  model.forward .eval"
+          "quote": "/-- The upstream sequential forward program takes W, b, and x and returns y. -/\ndef forwardProgram {\u03b1 : Type} [Storage \u03b1] [Context \u03b1] :\n    Runtime.Autograd.Model.Program \u03b1 [[outputSize, inputSize], [outputSize], [inputSize]] [outputSize] :=\n  model.forward .eval"
         }
       }
     },
@@ -56,7 +57,19 @@
       "to": {
         "path": "lakefile.toml",
         "passage": {
-          "quote": "name = \"ptxlean_relu_layer\"\nversion = \"0.1.0\"\ndefaultTargets = [\"ReluLayer\"]\n\n[[require]]\nname = \"TorchLean\"\ngit = \"https://github.com/lean-dojo/TorchLean.git\"\nrev = \"de3192df4779877ceb65cfe470a4d4ce9d480a5b\"\n\n[[lean_lib]]\nname = \"ReluLayer\"\nmoreLeanArgs = [\"-M5120\"]"
+          "quote": "name = \"ptxlean_relu_layer\"\nversion = \"0.1.0\"\nfixedToolchain = true\ndefaultTargets = [\"ReluLayer\"]\n\n[[require]]\nname = \"TorchLean\"\ngit = \"https://github.com/lean-dojo/TorchLean.git\"\nrev = \"de3192df4779877ceb65cfe470a4d4ce9d480a5b\"\n\n# FloatLib is used directly by the kernel's binary32 arithmetic adapter.\n[[require]]\nname = \"floatlib\"\ngit = \"https://github.com/lean-dojo/FloatLib\"\nrev = \"c9a051f08f948ce473036b815b0669fafb61f601\"\n\n# Root pins select one compatible dependency graph for all packages.\n[[require]]\nname = \"mathlib\"\ngit = \"https://github.com/leanprover-community/mathlib4\"\nrev = \"v4.35.0-rc4\"\n\n[[require]]\nname = \"doc-gen4\"\ngit = \"https://github.com/leanprover/doc-gen4\"\nrev = \"v4.35.0-rc4\"\n\n[[lean_lib]]\nname = \"ReluLayer\"\nmoreLeanArgs = [\"-M5120\"]"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The shared `inputSize` and `outputSize` define the concrete dimensions, 1024\nand 3072, for both the specification and PTX layout/launch."
+      },
+      "to": {
+        "path": "ReluLayer/Dimensions.lean",
+        "passage": {
+          "quote": "namespace ReluLayer\n\n/-- Shared concrete dimensions of the Sequential specification and selected PTX kernel. -/\nabbrev inputSize : Nat := 1024\nabbrev outputSize : Nat := 3072\n\nend ReluLayer"
         }
       }
     }

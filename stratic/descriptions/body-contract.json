@@ -1,0 +1,178 @@
+{
+  "id": "body-contract",
+  "parent": {
+    "description": "ptx-kernel",
+    "passage": {
+      "quote": "Each thread initializes its accumulator to positive zero and reads columns in\nthe order `j = 0, ..., 1023`. Each iteration loads `W[i,j]` and `x[j]` and updates\nthe accumulator with `fma.rn.f32`. After the loop, `add.rn.f32` adds `b[i]`,\n`max.f32` selects the maximum with positive zero, and `st.global.f32` writes\n`y[i]`."
+    }
+  },
+  "summary": [
+    "Require the supplied input words, then store the ordered row result at one address and preserve every other address; single-thread execution requires no output separation.",
+    "Define the column-ordered binary32 result using explicit FMA/addition operation parameters and a bit-pattern maximum with positive zero.",
+    "Execute the complete computational block, store the ordered row result, preserve every other word location and unrelated registers, and return.",
+    "Specialize execution to concrete FloatLib binary32 addition and FMA with a reference-arithmetic result.",
+    "Decode finite preactivations and prove exact real ReLU with preservation of absolute-error bounds.",
+    "Bound the finite ordered FMA and bias-addition error by accumulated local half-ULP terms; ReLU preserves this bound on the stored row result.",
+    "Connect the finite stored kernel result directly to the real-valued upstream nn.Sequential forward coordinate on decoded inputs, using the existing rounding budget."
+  ],
+  "realization": "partial",
+  "remaining": "The per-thread modeled kernel is connected to the actual real-valued TorchLean Sequential forward coordinate on decoded inputs, under the existing memory and finite-row contracts and accumulated rounding budget. PTX arithmetic adequacy, CUDA memory refinement, concurrent GPU execution and hardware correspondence remain unproved.",
+  "links": [
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The final block starts with pointers to weight row `i`, the input vector, bias\nelement `i`, and output element `i`. It initializes its counter and accumulator,\nreads columns in ascending order, adds the bias, applies the maximum with positive\nzero, stores one FP32 output, and returns. This is PTX lines 43\u201362."
+      },
+      "to": {
+        "path": "kernels/relu_layer.ptx",
+        "passage": {
+          "quote": "    mov.u32 %j, 0;\n    mov.f32 %acc, 0f00000000;\n\nDOT_LOOP:\n    // Read column j, then perform exactly one rounded fused multiply-add.\n    ld.global.f32 %w, [%W_read];\n    ld.global.f32 %x, [%x_read];\n    fma.rn.f32 %acc, %w, %x, %acc;\n    add.u64 %W_read, %W_read, 4;\n    add.u64 %x_read, %x_read, 4;\n    add.u32 %j, %j, 1;\n    setp.lt.u32 %more, %j, 1024;\n    @%more bra DOT_LOOP;\n\n    // Add bias, apply max with positive zero, and store the owned output.\n    ld.global.f32 %bias, [%b_read];\n    add.rn.f32 %acc, %acc, %bias;\n    max.f32 %result, %acc, 0f00000000;\n    st.global.f32 [%y_write], %result;\n    ret;"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "Memory maps 64-bit addresses directly to optional FP32 bit patterns. Addresses\nretain byte units: consecutive tensor words are four bytes apart, and the weight\nrow stride comes from the input width in `Layout`. The output row count is a\nparameter. Loads and stores operate on complete words in this abstract model.\nValid FP32 accesses are assumed; allocation, permissions, alignment, byte\nencoding, and CUDA memory correspondence are outside this contract."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/Environment.lean",
+        "passage": {
+          "quote": "abbrev Word32 := BitVec 32\nabbrev Word64 := BitVec 64\n\n/-- Abstract FP32 words at byte addresses; valid word accesses are assumed. -/\nabbrev GlobalMemory := Word64 \u2192 Option Word32"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "Memory maps 64-bit addresses directly to optional FP32 bit patterns. Addresses\nretain byte units: consecutive tensor words are four bytes apart, and the weight\nrow stride comes from the input width in `Layout`. The output row count is a\nparameter. Loads and stores operate on complete words in this abstract model.\nValid FP32 accesses are assumed; allocation, permissions, alignment, byte\nencoding, and CUDA memory correspondence are outside this contract."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/TensorMemory.lean",
+        "passage": {
+          "quote": "abbrev Buffers := Argument \u2192 Word64\n\nstructure TensorData (layout : Layout) (rows : Nat) where\n  weights : Fin rows \u2192 Fin layout.inputWidth \u2192 FP32.Bits\n  input : Fin layout.inputWidth \u2192 FP32.Bits\n  bias : Fin rows \u2192 FP32.Bits\n\n/-- Addresses retain byte units even though memory stores complete FP32 words. -/\ndef weightAddress (layout : Layout) (buffers : Buffers) (i j : Nat) : Word64 :=\n  buffers .weights + BitVec.ofNat 64 (i * layout.rowStride + j * fp32Bytes)\n\ndef elementAddress (buffers : Buffers) (arg : Argument) (i : Nat) : Word64 :=\n  buffers arg + BitVec.ofNat 64 (i * fp32Bytes)"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The input memory contains the supplied weight, input, and bias words at their\ncomputed addresses. The single-thread theorem requires no output separation:\nall input reads finish before its only store. Exactly the selected output word\nis updated, and every other address keeps its initial contents. Read-only\ninputs may overlap when their specified values agree. No initial contents are\nrequired for a separate output location.\n\n`OutputsSeparated` is an optional launch-level contract excluding output/input\nand output/output overlap. It is retained for composing different threads,\nand is not a hypothesis of the single-thread theorem."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/TensorMemory.lean",
+        "passage": {
+          "quote": "/-- Correct input words at the addresses used by the computation. -/\nstructure InputsStored (layout : Layout) (rows : Nat) (buffers : Buffers)\n    (data : TensorData layout rows) (memory : GlobalMemory) : Prop where\n  weights : \u2200 i j, memory (weightAddress layout buffers i.val j.val) = some (data.weights i j)\n  input : \u2200 j, memory (elementAddress buffers .input j.val) = some (data.input j)\n  bias : \u2200 i, memory (elementAddress buffers .bias i.val) = some (data.bias i)\n\n/-- Optional launch-level separation; single-thread correctness does not require it. -/\nstructure OutputsSeparated (layout : Layout) (rows : Nat) (buffers : Buffers) : Prop where\n  weights : \u2200 (i r : Fin rows) (j : Fin layout.inputWidth),\n    elementAddress buffers .output i.val \u2260 weightAddress layout buffers r.val j.val\n  input : \u2200 (i : Fin rows) (j : Fin layout.inputWidth),\n    elementAddress buffers .output i.val \u2260 elementAddress buffers .input j.val\n  bias : \u2200 (i r : Fin rows),\n    elementAddress buffers .output i.val \u2260 elementAddress buffers .bias r.val\n  outputs : \u2200 (i r : Fin rows), i \u2260 r \u2192\n    elementAddress buffers .output i.val \u2260 elementAddress buffers .output r.val"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "FMA and addition are explicit operation parameters on binary32 bit patterns.\nThe concrete FloatLib adapter supplies nearest-even binary32 addition and\nsingle-rounding FMA, and proves agreement with FloatLib reference operations.\nThe generic interface itself imposes no arithmetic laws. The result definition\ndoes not substitute real-number arithmetic or claim equality with TorchLean's\nreal-valued forward map. PTX arithmetic correspondence remains separate."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/FP32.lean",
+        "passage": {
+          "quote": "/-- An operation interface, not a certified implementation of rounded arithmetic. -/\nstructure Arithmetic where\n  fmaRN : Bits \u2192 Bits \u2192 Bits \u2192 Bits\n  addRN : Bits \u2192 Bits \u2192 Bits"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The maximum with positive zero is defined directly from binary32 sign, exponent,\nand fraction bits. It maps NaNs and negative values, including negative zero,\nto positive zero, preserves positive infinity and positive subnormal values,\nand leaves positive zero unchanged. This follows the selected unmodified\n[`max.f32` rule](https://docs.nvidia.com/cuda/archive/12.0.1/parallel-thread-execution/index.html#floating-point-instructions-max)."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/FP32.lean",
+        "passage": {
+          "quote": "/-- Binary32 storage, retaining signed zeros, infinities and NaN payloads. -/\nabbrev Bits := Word32\n\ndef positiveZero : Bits := 0\ndef fractionBits : Nat := 23\ndef exponentBits : Nat := 8\n\ndef fraction (v : Bits) : Nat := v.toNat % 2 ^ fractionBits\ndef exponent (v : Bits) : Nat := v.toNat / 2 ^ fractionBits % 2 ^ exponentBits\ndef negative (v : Bits) : Bool := decide (2 ^ (fractionBits + exponentBits) \u2264 v.toNat)\ndef isNaN (v : Bits) : Bool :=\n  decide (exponent v = 2 ^ exponentBits - 1 \u2227 fraction v \u2260 0)\n\n/-- The selected max.f32 with a fixed positive-zero second operand, without .ftz. -/\ndef maxPositiveZero (v : Bits) : Bits :=\n  if isNaN v || negative v then positiveZero else v"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The ordered result starts from positive zero and folds an FMA over columns\n`0` through `n - 1`, then performs one bias addition and a maximum with positive\nzero. The prefix accumulator records the same fold over the first `k` columns:"
+      },
+      "to": {
+        "path": "ReluLayer/PTX/BodyContract.lean",
+        "passage": {
+          "quote": "/-- Column order is carried by Fin enumeration, not an unordered sum. -/\ndef rowTerms (data : TensorData layout rows) (i : Fin rows) : List (FP32.Bits \u00d7 FP32.Bits) :=\n  List.ofFn (fun j => (data.weights i j, data.input j))\n\n/-- First k FMA updates from positive zero, using the supplied arithmetic operations. -/\ndef prefixAccumulator (ops : FP32.Arithmetic) (data : TensorData layout rows)\n    (i : Fin rows) (k : Nat) : FP32.Bits :=\n  ((rowTerms data i).take k).foldl\n    (fun acc term => ops.fmaRN term.1 term.2 acc) FP32.positiveZero\n\n@[simp] theorem prefixAccumulator_zero (ops : FP32.Arithmetic)\n    (data : TensorData layout rows) (i : Fin rows) :\n    prefixAccumulator ops data i 0 = FP32.positiveZero := by\n  simp [prefixAccumulator]\n\ndef rowResult (ops : FP32.Arithmetic) (data : TensorData layout rows) (i : Fin rows) : FP32.Bits :=\n  FP32.maxPositiveZero (ops.addRN (prefixAccumulator ops data i layout.inputWidth) (data.bias i))"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The entry contract combines the supplied input words, the\nselected row register, and the four actual read/write pointers. Scratch register\ncontents are unrestricted. The thread is active, and its PC is relative to this\nindependent fragment, starting at zero."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/BodyContract.lean",
+        "passage": {
+          "quote": "/-- Entry to the independent fragment at PTX line 43; scratch contents are unrestricted. -/\nstructure BodyEntry (layout : Layout) (rows : Nat)\n    (buffers : Buffers) (data : TensorData layout rows)\n    (i : Fin rows) (initial : State Register) : Prop where\n  inputs : InputsStored layout rows buffers data initial.globalMemory\n  pc : initial.pc = 0\n  active : initial.returned = false\n  row : (initial.regs .row).toNat = i.val\n  weightRead : initial.regs64 .weightRead = weightAddress layout buffers i.val 0\n  inputRead : initial.regs64 .inputRead = buffers .input\n  biasRead : initial.regs64 .biasRead = elementAddress buffers .bias i.val\n  outputWrite : initial.regs64 .outputWrite = elementAddress buffers .output i.val"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The memory result requires output location `i` to contain the ordered result,\nwith every other word location unchanged. The complete block theorem connects\nthis postcondition to actual execution of initialization, the dot-product loop,\nand the bias/ReLU/store/return suffix. It proves the thread returns with the\nresult register containing `rowResult` and the counter at the input width."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/BodyContract.lean",
+        "passage": {
+          "quote": "/-- Store the selected row result and preserve every other word address. -/\nstructure OutputStored (ops : FP32.Arithmetic) (data : TensorData layout rows)\n    (buffers : Buffers) (i : Fin rows) (initial final : GlobalMemory) : Prop where\n  output : final (elementAddress buffers .output i.val) = some (rowResult ops data i)\n  frame : \u2200 address, address \u2260 elementAddress buffers .output i.val \u2192\n    final address = initial address"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "Finite fixtures exercise multiple rows and columns, uninitialized output,\nrejection of missing or incorrect input words and output aliasing, and\npreservation of input words and other output locations. Artificial arithmetic\noperations check column order and accumulator placement without pretending to\nimplement FP32 FMA or addition. Bit-pattern cases cover NaNs, infinities, signed\nzeros, and subnormal values in the maximum."
+      },
+      "to": {
+        "path": "checks/BodyContract.lean",
+        "passage": {
+          "quote": "-- Bit-pattern oracles cover both signs, infinities, NaNs, and subnormals.\nexample : FP32.maxPositiveZero 0x80000000 = 0 := by decide\nexample : FP32.maxPositiveZero 0xbf800000 = 0 := by decide\nexample : FP32.maxPositiveZero 0xff800000 = 0 := by decide\nexample : FP32.maxPositiveZero 0x7fc00001 = 0 := by decide\nexample : FP32.maxPositiveZero 0x7f800001 = 0 := by decide\nexample : FP32.maxPositiveZero 0xffc00001 = 0 := by decide\nexample : FP32.maxPositiveZero 0x7f800000 = 0x7f800000 := by decide\nexample : FP32.maxPositiveZero 1 = 1 := by decide\nexample : FP32.maxPositiveZero 0x80000001 = 0 := by decide\nexample : FP32.maxPositiveZero 0 = 0 := by decide\nexample : FP32.maxPositiveZero 0x3f800000 = 0x3f800000 := by decide\n\nprivate def layout : Layout := \u27e82, by decide, by decide\u27e9\nprivate def buffers : Buffers\n  | .weights => 0\n  | .input => 16\n  | .bias => 24\n  | .output => 32\nprivate def data : TensorData layout 2 :=\n  \u27e8fun i j => BitVec.ofNat 32 (i.val * 2 + j.val + 1),\n    fun j => BitVec.ofNat 32 (j.val + 5), fun i => BitVec.ofNat 32 (i.val + 7)\u27e9\nprivate def memory : GlobalMemory := fun a =>\n  if a = 0 then some 1 else if a = 4 then some 2\n  else if a = 8 then some 3 else if a = 12 then some 4\n  else if a = 16 then some 5 else if a = 20 then some 6\n  else if a = 24 then some 7 else if a = 28 then some 8\n  else if a = 36 then some 0x3f800000 else none\n\nprivate theorem inputsStored : InputsStored layout 2 buffers data memory := by\n  constructor <;> decide\nprivate theorem separated : OutputsSeparated layout 2 buffers := by\n  constructor <;> decide\n\n-- No output initialization is required. Missing/wrong input words are rejected.\nexample : memory 32 = none := by decide\nexample : \u00ac InputsStored layout 2 buffers data (fun _ => none) := by\n  intro h\n  have hh := h.weights (0 : Fin 2) \u27e80, by decide\u27e9\n  contradiction\nexample : \u00ac InputsStored layout 2 buffers data (fun a => if a = 0 then some 9 else memory a) := by\n  intro h\n  have hh := h.weights (0 : Fin 2) \u27e80, by decide\u27e9\n  exact (by decide : (some (9 : Word32)) \u2260 some 1) hh\n\n-- The optional launch-level contract excludes output/input and output/output aliasing.\nexample : \u00ac OutputsSeparated layout 2 (fun arg => if arg = .output then 16 else buffers arg) := by\n  intro h\n  exact h.input (0 : Fin 2) \u27e80, by decide\u27e9 rfl\nexample : \u00ac OutputsSeparated layout (2 ^ 62 + 1) buffers := by\n  intro h\n  exact h.outputs \u27e80, by decide\u27e9 \u27e82 ^ 62, by decide\u27e9 (by decide) (by decide)\n\n-- Read-only inputs can share addresses when their specified values agree.\nprivate def sharedBuffers : Buffers := fun arg => if arg = .input then 0 else buffers arg\nprivate def sharedData : TensorData layout 2 :=\n  { data with input := fun j => BitVec.ofNat 32 (j.val + 1) }\nexample : InputsStored layout 2 sharedBuffers sharedData memory := by constructor <;> decide\nexample : OutputsSeparated layout 2 sharedBuffers := by constructor <;> decide\n\nprivate def initial : State Register :=\n  { regs := fun r => if r = .row then 0 else 77\n    pc := 0\n    regs64 := fun r => match r with\n      | .weightRead => 0\n      | .inputRead => 16\n      | .biasRead => 24\n      | .outputWrite => 32\n      | _ => 999\n    globalMemory := memory }\nexample : BodyEntry layout 2 buffers data 0 initial :=\n  \u27e8inputsStored, rfl, rfl, by decide, by decide, by decide, by decide, by decide\u27e9\n\n-- Artificial operations expose order/arity; they are not rounded FP32 arithmetic.\nprivate def traceOps : FP32.Arithmetic := \u27e8fun w x acc => acc * 10 + w + x, fun a b => a + b\u27e9\nexample : prefixAccumulator traceOps data 0 0 = 0 := by decide\nexample : prefixAccumulator traceOps data 0 1 = 6 := by decide\nexample : prefixAccumulator traceOps data 0 2 = 68 := by decide\nexample : rowResult traceOps data 0 = 75 := by decide\nexample : rowResult traceOps data 1 = 98 := by decide\n\nprivate def written : GlobalMemory := fun a => if a = 32 then some 75 else memory a\nexample : OutputStored traceOps data buffers 0 memory written := by\n  constructor\n  \u00b7 decide\n  \u00b7 intro address h\n    change address \u2260 (32 : Word64) at h\n    exact ite_eq_right h\nexample : written 0 = memory 0 \u2227 written 20 = memory 20 \u2227 written 36 = some 0x3f800000 := by decide\n\n#print axioms prefixAccumulator_zero\n\ndef main : IO Unit := IO.println \"Body contract: word inputs, output separation/frame, FP32 maximum, and ordered-fold checks pass.\""
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The complete program appends the suffix to the initialized loop. Successful\nloop execution is unchanged by the appended instructions; its final PC points\nto the suffix. The suffix theorem applies at that offset, using the loop's\ncompleted accumulator, unchanged input memory, and preserved bias/output\npointers. The combined instruction count is `2 + 8 * inputWidth + 5`."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/BodyExecution.lean",
+        "passage": {
+          "quote": "/-- Block four: initialized dot loop followed by bias/ReLU/store/return. -/\ndef bodyProgram (width : Nat) : List (Instruction Register) := dotLoop width ++ reluSuffix\n\ndef bodySteps (width : Nat) : Nat := dotLoopStart + dotIterationSteps * width + reluSuffix.length\n\n/-- The complete computational block returns with the specified output and preserved frame. -/\nstructure BodyResult (ops : FP32.Arithmetic) (data : TensorData layout rows)\n    (buffers : Buffers) (i : Fin rows) (initial final : State Register) : Prop where\n  pc : final.pc = (bodyProgram layout.inputWidth).length\n  returned : final.returned = true\n  column : final.regs .column = BitVec.ofNat 32 layout.inputWidth\n  result : final.regs .result = rowResult ops data i\n  memory : OutputStored ops data buffers i initial.globalMemory final.globalMemory\n  other32 : \u2200 r, r \u2260 .column \u2192 r \u2260 .weightValue \u2192 r \u2260 .inputValue \u2192\n    r \u2260 .accumulator \u2192 r \u2260 .biasValue \u2192 r \u2260 .result \u2192 final.regs r = initial.regs r\n  other64 : \u2200 r, r \u2260 .weightRead \u2192 r \u2260 .inputRead \u2192 final.regs64 r = initial.regs64 r\n  otherPredicates : \u2200 r, r \u2260 .more \u2192 final.predicates r = initial.predicates r\n\n/-- Actual concatenated-program execution, reusing the loop and suffix theorems. -/\ntheorem body_correct (ops : FP32.Arithmetic) (data : TensorData layout rows)\n    (buffers : Buffers) (i : Fin rows) (initial : State Register) (id : Identity)\n    (env : Environment) (hentry : BodyEntry layout rows buffers data i initial) :\n    \u2203 final, run (bodyProgram layout.inputWidth) id (bodySteps layout.inputWidth)\n        initial env (some ops) = some final \u2227 BodyResult ops data buffers i initial final := by\n  obtain \u27e8middle, hloop, hinv\u27e9 :=\n    dotLoop_correct ops data buffers i initial id env hentry\n  have hb : middle.regs64 .biasRead = elementAddress buffers .bias i.val :=\n    (hinv.other64 .biasRead (by decide) (by decide)).trans hentry.biasRead\n  have hy : middle.regs64 .outputWrite = elementAddress buffers .output i.val :=\n    (hinv.other64 .outputWrite (by decide) (by decide)).trans hentry.outputWrite\n  have hsuffix : SuffixEntry ops data buffers i middle (dotLoop layout.inputWidth).length := by\n    refine \u27e8?_, hinv.active, hinv.accumulator, hb, ?_, hy\u27e9\n    \u00b7 simpa [dotLoopExit, dotLoop] using hinv.pc\n    \u00b7 rw [hinv.memory]; exact hentry.inputs.bias i\n  obtain \u27e8final, hs, hr\u27e9 := reluSuffix_correct_at (dotLoop layout.inputWidth)\n    ops data buffers i middle id env hsuffix\n  have hl := run_append_of_run (dotLoop layout.inputWidth) reluSuffix id\n    (dotLoopStart + dotIterationSteps * layout.inputWidth) initial middle env (some ops) hloop\n  refine \u27e8final, ?_, ?_\u27e9\n  \u00b7 unfold bodyProgram bodySteps\n    rw [run_add, hl]\n    exact hs\n  \u00b7 constructor\n    \u00b7 simpa [bodyProgram] using hr.pc\n    \u00b7 exact hr.returned\n    \u00b7 exact (hr.other32 .column (by decide) (by decide) (by decide)).trans hinv.column\n    \u00b7 exact hr.result\n    \u00b7 simpa only [hinv.memory] using hr.memory\n    \u00b7 intro r hc hw hx ha hb hresult\n      exact (hr.other32 r hb ha hresult).trans (hinv.other32 r hc hw hx ha)\n    \u00b7 intro r hw hx\n      rw [hr.regs64]; exact hinv.other64 r hw hx\n    \u00b7 intro r hmore\n      rw [hr.predicates]; exact hinv.otherPredicates r hmore"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The complete program appends the suffix to the initialized loop. Successful\nloop execution is unchanged by the appended instructions; its final PC points\nto the suffix. The suffix theorem applies at that offset, using the loop's\ncompleted accumulator, unchanged input memory, and preserved bias/output\npointers. The combined instruction count is `2 + 8 * inputWidth + 5`."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/Machine.lean",
+        "passage": {
+          "quote": "private theorem step_append_of_step [DecidableEq Reg]\n    (program suffix : List (Instruction Reg)) (id : Identity) (s next : State Reg)\n    (env : Environment) (ops : Option FP32.Arithmetic)\n    (h : step program id s env ops = some next) :\n    step (program ++ suffix) id s env ops = some next := by\n  have hpc : s.pc < program.length := by\n    by_contra hn\n    have hf := List.getElem?_eq_none (l := program) (by omega : program.length \u2264 s.pc)\n    simp [step, hf] at h\n  simpa only [step, List.getElem?_append_left hpc] using h\n\n/-- Appending instructions cannot change an already successful prefix execution. -/\ntheorem run_append_of_run [DecidableEq Reg]\n    (program suffix : List (Instruction Reg)) (id : Identity) (fuel : Nat)\n    (s final : State Reg) (env : Environment) (ops : Option FP32.Arithmetic)\n    (h : run program id fuel s env ops = some final) :\n    run (program ++ suffix) id fuel s env ops = some final := by\n  induction fuel generalizing s with\n  | zero => simpa [run] using h\n  | succ fuel ih =>\n    obtain \u27e8next, hs, ht\u27e9 := Option.bind_eq_some_iff.mp h\n    have he := step_append_of_step program suffix id s next env ops hs\n    simpa only [run, he, Option.bind_some] using ih next ht"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The block's result preserves every other memory location and every register\noutside the loop/suffix destinations. Only the two read pointers advance; all\nother 64-bit registers remain unchanged. The proof reuses the loop and suffix\nexecution theorems. The whole-kernel theorem composes this result with the three setup blocks.\nThe concrete FloatLib instance agrees with its reference arithmetic. The\nfinite-row bound connects its result to the actual real-valued Sequential\nforward coordinate on decoded inputs. PTX arithmetic correspondence remains\nseparate."
+      },
+      "to": {
+        "path": "checks/BodyExecution.lean",
+        "passage": {
+          "quote": "private def layout : Layout := \u27e82, by decide, by decide\u27e9\nprivate def buffers : Buffers\n  | .weights => 0\n  | .input => 16\n  | .bias => 24\n  | .output => 32\nprivate def data : TensorData layout 2 :=\n  \u27e8fun i j => BitVec.ofNat 32 (i.val * 2 + j.val + 1),\n    fun j => BitVec.ofNat 32 (j.val + 5), fun i => BitVec.ofNat 32 (i.val + 7)\u27e9\nprivate def memory : GlobalMemory := fun a =>\n  if a = 0 then some 1 else if a = 4 then some 2\n  else if a = 8 then some 3 else if a = 12 then some 4\n  else if a = 16 then some 5 else if a = 20 then some 6\n  else if a = 24 then some 7 else if a = 28 then some 8\n  else if a = 32 then some 0x3f800000 else none\nprivate def initial : State Register :=\n  { regs := fun r => if r = .row then 1 else 99\n    pc := 0\n    regs64 := fun r => match r with\n      | .weightRead => 8 | .inputRead => 16 | .biasRead => 28 | .outputWrite => 36 | _ => 999\n    globalMemory := memory\n    predicates := fun _ => true }\nprivate def ops : FP32.Arithmetic := \u27e8fun w x acc => acc * 10 + w + x, fun a b => a + b\u27e9\n\nprivate theorem entry : BodyEntry layout 2 buffers data 1 initial := by\n  constructor\n  \u00b7 constructor <;> decide\n  all_goals decide\n\nprivate def executed : Option (State Register) :=\n  run (bodyProgram 2) \u27e80, 0\u27e9 (bodySteps 2) initial Environment.empty (some ops)\n\n-- The appended program crosses the loop/suffix boundary with no PC reset.\nexample : ((run (bodyProgram 2) \u27e80, 0\u27e9 18 initial Environment.empty (some ops)).map\n    (fun s => (s.pc, s.returned, (s.regs .accumulator).toNat))) = some (10, false, 90) := by decide\nexample : executed.map (fun s => (s.pc, s.returned)) = some (15, true) := by decide\nexample : executed.map (fun s => ((s.regs .column).toNat, (s.regs .result).toNat)) = some (2, 98) := by decide\nexample : executed.bind (fun s => s.globalMemory 36) = some 98 := by decide\nexample : executed.bind (fun s => s.globalMemory 28) = some 8 := by decide\nexample : executed.bind (fun s => s.globalMemory 32) = some 0x3f800000 := by decide\nexample : executed.map (fun s => ((s.regs .row).toNat, (s.regs64 .biasRead).toNat,\n    (s.regs64 .outputWrite).toNat)) = some (1, 28, 36) := by decide\nexample : \u2203 final, run (bodyProgram 2) \u27e80, 0\u27e9 (bodySteps 2) initial Environment.empty (some ops) = some final \u2227\n    BodyResult ops data buffers 1 initial final :=\n  body_correct ops data buffers 1 initial \u27e80, 0\u27e9 Environment.empty entry\n\n-- The generalized suffix theorem also applies after a non-loop prelude.\nprivate def prelude : List (Instruction Register) := [.mov .row (.imm 1), .mov .column (.imm 2)]\nprivate def suffixInitial : State Register :=\n  { initial with pc := prelude.length, regs := fun r => if r = .accumulator then 90 else initial.regs r }\nprivate theorem suffixEntry : SuffixEntry ops data buffers 1 suffixInitial prelude.length := by\n  constructor <;> decide\nexample : \u2203 final, run (prelude ++ reluSuffix) \u27e80, 0\u27e9 5 suffixInitial Environment.empty (some ops) = some final \u2227\n    SuffixResult ops data buffers 1 suffixInitial final prelude.length :=\n  reluSuffix_correct_at prelude ops data buffers 1 suffixInitial \u27e80, 0\u27e9 Environment.empty suffixEntry\n\n#print axioms run_append_of_run\n#print axioms reluSuffix_correct_at\n#print axioms body_correct\n\nprivate def expectedSource : String :=\n  let lines := (bodyProgram layerLayout.inputWidth).map\n    (fun inst => inst.ptxText.replace s!\"PC_{dotLoopStart}\" \"DOT_LOOP\")\n  \"\\n\" ++ String.intercalate \"\\n\"\n    (lines.take dotLoopStart ++ [\"DOT_LOOP:\"] ++ lines.drop dotLoopStart) ++ \"\\n\"\n\ndef main (args : List String) : IO Unit := do\n  let source \u2190 IO.FS.readFile (args.headD \"kernels/relu_layer.ptx\")\n  let lines := ((source.splitOn \"\\n\").map (fun line => line.trimAscii.toString)).filter\n    (fun line => !line.isEmpty && !(line.startsWith \"//\"))\n  let normalized := \"\\n\" ++ String.intercalate \"\\n\" lines ++ \"\\n\"\n  unless (normalized.splitOn expectedSource).length == 2 do\n    throw (IO.userError s!\"Expected exactly one complete computational block:\\n{expectedSource}\")\n  -- Artificial word arithmetic supplies independent full-size execution oracles.\n  let sumOps : FP32.Arithmetic := \u27e8fun w x acc => acc + w * x, fun a b => a + b\u27e9\n  let fullInitial : State Register := { initial with\n    regs64 := fun r => match r with\n      | .weightRead => 0 | .inputRead => 8192 | .biasRead => 16380 | .outputWrite => 16384 | _ => 999\n    globalMemory := fun a => if a.toNat < 4096 then some 2\n      else if 8192 \u2264 a.toNat && a.toNat < 12288 then some 3\n      else if a = 16380 then some 1 else if a = 16388 then some 0x3f800000 else none }\n  match run (bodyProgram layerLayout.inputWidth) \u27e80, 0\u27e9\n      (bodySteps layerLayout.inputWidth) fullInitial Environment.empty (some sumOps) with\n  | none => throw (IO.userError \"Full-width body execution failed.\")\n  | some final =>\n    unless final.pc == (bodyProgram layerLayout.inputWidth).length && final.returned &&\n        final.regs .column == 1024 && final.regs .result == 6145 &&\n        final.globalMemory 16384 == some 6145 && final.globalMemory 16380 == some 1 &&\n        final.globalMemory 16388 == some 0x3f800000 do\n      throw (IO.userError \"Full-width body output/frame did not match independent oracles.\")\n  IO.println \"Complete computational block, suffix offset, 1024-column output/frame, and exact PTX source pass.\""
+        }
+      }
+    }
+  ]
+}

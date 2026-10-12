@@ -9,10 +9,21 @@
   "summary": [
     "Compute each output row in a separate thread using 1024 ordered FP32 fused multiply-adds, a rounded bias addition, and a maximum with positive zero.",
     "Use 12 blocks of 256 threads and contiguous disjoint buffers, with 16 PTX instruction forms and private per-thread register state.",
-    "Select an in-range output row through formally modeled register updates, with launch counts supplied as parameters."
+    "Select an in-range output row through formally modeled register updates, with launch counts supplied as parameters.",
+    "Form exact row, bias, and output pointers using a derived weight stride and explicit buffer-end bounds preventing 64-bit wraparound.",
+    "Load declared pointer parameters and convert them under an explicit global-window configuration, preserving untouched registers and global memory.",
+    "Require the supplied input-word values for the single-thread final block, store its ordered result in exactly one word and preserve every other word address.",
+    "Execute the initialized dot-product loop with one supplied FMA update per column, correct pointer/counter progress and exit, while preserving memory and unrelated registers.",
+    "Execute the bias/ReLU/store/return suffix, store the specified row result, preserve other word locations and unrelated registers, and stop the entry thread.",
+    "Execute the complete computational block through its loop/suffix handoff, return with rowResult stored, and preserve all other word locations and unrelated registers.",
+    "Execute the concatenated four-block kernel per thread through return, store its ordered row result and preserve every other memory word.",
+    "Specialize execution to concrete FloatLib binary32 addition and FMA with a reference-arithmetic result.",
+    "Decode finite preactivations and prove exact real ReLU with preservation of absolute-error bounds.",
+    "Bound the finite ordered FMA and bias-addition error by accumulated local half-ULP terms; ReLU preserves this bound on the stored row result.",
+    "Connect the finite stored kernel result directly to the real-valued upstream nn.Sequential forward coordinate on decoded inputs, using the existing rounding budget."
   ],
   "realization": "partial",
-  "remaining": "The PTX source and exact instruction inventory are assembly-checked. Lean semantics for the row-selection forms and its execution theorem are implemented. The other instructions, full-kernel execution, floating-point correspondence, and GPU execution remain unchecked.",
+  "remaining": "The per-thread modeled kernel is connected to the actual real-valued TorchLean Sequential forward coordinate on decoded inputs, under the existing memory and finite-row contracts and accumulated rounding budget. PTX arithmetic adequacy, CUDA memory refinement, concurrent GPU execution and hardware correspondence remain unproved.",
   "links": [
     {
       "kind": "implementation",

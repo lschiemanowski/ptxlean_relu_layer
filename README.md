@@ -1,54 +1,132 @@
 # ptxlean_relu_layer
 
-A minimal Lean formalization of a PTX implementation of `ReLU(Wx + b)`, with
-1024 input coordinates and 3072 output coordinates.
+A minimal Lean demonstration connecting a scalar FP32 PTX kernel for
+`ReLU(Wx + b)` to upstream TorchLean's `nn.Sequential`. The shared dimensions
+are 1024 inputs and 3072 outputs. The selected kernel uses 12 blocks of 256
+threads, one thread per output row.
 
-The specification uses upstream TorchLean's `nn.Sequential`, with a linear layer
-followed by ReLU. [Specification.lean](ReluLayer/Specification.lean) defines the
-architecture, explicit weight and bias state, and the upstream forward program.
-[RealForward.lean](ReluLayer/RealForward.lean) interprets that program over real
-numbers, proves evaluation succeeds, and proves the coordinate formula for
-arbitrary weights, bias, and input.
+The public result is
+[`layer_kernel_forward_abs_error_le`](ReluLayer/SequentialBridge.lean).
+For any valid selected thread, under the entry and finite-trace contracts, the
+modeled kernel returns and stores a finite word at that thread's output address.
+Every other word address retains its initial contents. The stored value differs
+from the actual real-valued Sequential forward coordinate on decoded inputs by
+at most the existing accumulated rounding budget.
 
-[relu_layer.ptx](kernels/relu_layer.ptx) is a scalar FP32 kernel with one thread
-per output row. It requires 12 blocks of 256 threads and four disjoint contiguous
-buffers, passed as `W`, `x`, `b`, `y`. It accumulates 1024 fused multiply-adds in
-column order, adds bias, and takes the maximum with positive zero. Its launch,
-memory layout, arithmetic, and instruction forms are described in
-[Stratic](stratic/descriptions/ptx-kernel.md).
+```lean
+theorem layer_kernel_forward_abs_error_le (data : TensorData layerLayout layerLaunch.rows)
+    (env : Environment) (args : Argument → Word64) (t : Thread layerLaunch)
+    (initial : State Register) (hentry : KernelEntry layerLaunch layerLayout env args data initial)
+    (hfinite : FiniteRowTrace data t.rowIndex) :
+    let output := elementAddress (convertedBuffers env args) .output t.row
+    ∃ final word,
+      run (kernelProgram layerLaunch layerLayout) t.identity
+        (kernelSteps layerLaunch layerLayout) initial env (some FP32.floatLibArithmetic) = some final ∧
+      final.returned = true ∧
+      final.globalMemory output = some word ∧
+      (∀ address, address ≠ output → final.globalMemory address = initial.globalMemory address) ∧
+      FP32.isFinite word = true ∧
+      |FP32.toReal word -
+        getScalar (ReluLayer.forward (decodedWeights data) (decodedBias data) (decodedInput data))
+          t.rowIndex| ≤ traceErrorBudget data t.rowIndex
+```
 
-[Machine.lean](ReluLayer/PTX/Machine.lean) defines private 32-bit registers,
-a program counter, and execution of moves and low multiply-adds.
-[RowSelection.lean](ReluLayer/PTX/RowSelection.lean) defines launch indexing and
-proves the three-instruction row-selection fragment computes an in-range row
-for arbitrary initial registers. The theorem takes positive launch dimensions
-as parameters; `layerLaunch` selects the concrete 12-by-256 configuration.
-Memory operations, the loop, and floating-point correspondence remain unproved.
+`Thread.rowIndex` packages the owned row and its range proof. `word` is the
+value in output memory, so the public conclusion needs no PC, counter or scratch
+register facts. The block proofs retain those internal facts for composition.
+`traceErrorBudget` sums the local half-ULP budgets of the ordered FMA loop and
+bias addition using the actual rounded accumulators. ReLU contributes no
+additional error term. No explicit constant or input-only error estimate is
+claimed.
+
+To inspect the proof chain:
+
+1. [Dimensions](ReluLayer/Dimensions.lean) supplies the shared shapes.
+   [Specification](ReluLayer/Specification.lean) defines the upstream Sequential
+   architecture and explicit weight-then-bias state.
+   [RealForward](ReluLayer/RealForward.lean) proves evaluation succeeds and each
+   coordinate equals the real dense-ReLU formula.
+2. [Machine](ReluLayer/PTX/Machine.lean) defines instruction execution over
+   private registers, predicates and PC with abstract global word memory.
+   [Environment](ReluLayer/PTX/Environment.lean) supplies pointer parameters and
+   the admitted address conversion. [FloatArithmetic](ReluLayer/PTX/FloatArithmetic.lean)
+   supplies FloatLib binary32 nearest-even addition and single-rounding FMA,
+   with proofs of agreement with FloatLib reference arithmetic.
+3. [BaseLoading](ReluLayer/PTX/BaseLoading.lean),
+   [RowSelection](ReluLayer/PTX/RowSelection.lean) and
+   [AddressCalculation](ReluLayer/PTX/AddressCalculation.lean) prove the setup
+   blocks independently. [DotLoop](ReluLayer/PTX/DotLoop.lean) and
+   [ReluSuffix](ReluLayer/PTX/ReluSuffix.lean) prove the computation.
+   [BodyExecution](ReluLayer/PTX/BodyExecution.lean) and
+   [KernelExecution](ReluLayer/PTX/KernelExecution.lean) compose these on the
+   concatenated instruction program, including relocation of its branch target.
+4. [RealDecode](ReluLayer/PTX/RealDecode.lean) proves finite decoding turns the
+   maximum with positive zero into real ReLU.
+   [RoundingError](ReluLayer/PTX/RoundingError.lean) bounds the ordered rounded
+   computation. [SequentialBridge](ReluLayer/SequentialBridge.lean) identifies
+   its real target with the actual Sequential output and proves the headline.
+
+The two public hypotheses have concrete responsibilities:
+
+- `KernelEntry`: start at PC zero in an active state; supply the four pointer
+  parameters and their admitted conversions; put the specified input words at
+  their computed addresses. Scratch registers and predicates are arbitrary.
+- `FiniteRowTrace`: the selected row's weights and bias, the input vector, every
+  accumulator prefix and the rounded bias-addition result are finite. Signed
+  zeros and subnormals are included. Absence of overflow is assumed.
+
+One thread needs no output-separation hypothesis: its only store follows every
+input read. The output may alias an input, in which case that address is updated;
+only *other addresses* are preserved. `OutputsSeparated` remains an optional
+launch-level contract for future composition of different threads.
+
+The model maps byte addresses directly to optional complete FP32 words. Valid
+word accesses are assumed. Allocation, permissions, alignment and byte encoding
+are outside it. Optional nonwrapping natural-address results live in
+[AddressBounds](ReluLayer/PTX/Optional/AddressBounds.lean); the main kernel proof
+uses modular word addresses and does not import that module.
+
+This is a per-thread theorem about the formal instruction model and FloatLib
+arithmetic. [The PTX source](kernels/relu_layer.ptx) is compared with the formal
+instruction list by executable checks. Those checks are not a verified parser.
+Agreement with documented PTX arithmetic, CUDA memory, all-thread execution or
+arbitrary GPU interleavings, and GPU hardware remains unproved. Reviewing the
+meaning of the machine and arithmetic definitions is therefore essential in
+addition to checking the Lean proofs.
 
 With [elan](https://github.com/leanprover/elan) installed, build with:
 
 ```sh
-LEAN_NUM_THREADS=1 lake build
+lake update
+python3 scripts/prepare_dependencies.py
+LEAN_NUM_THREADS=4 lake build
 ```
 
-`lean-toolchain` pins Lean 4.34.0; `lakefile.toml` and `lake-manifest.json` pin
-TorchLean and its transitive dependencies. Lake downloads dependencies on the
-first build. Project descriptions and source links are in `stratic/`.
+The project pins Lean 4.35.0-rc4, TorchLean, FloatLib and matching transitive
+packages. `prepare_dependencies.py` applies four checked compatibility edits to
+isolated package checkouts; it is idempotent, verifies exact revisions and source
+contents, and preserves arithmetic definitions. Project contracts and exact
+source links are maintained in [Stratic](stratic/descriptions/root.md).
 
-With the CUDA toolkit installed, check PTX assembly with:
-
-```sh
-ptxas -arch=sm_80 -v kernels/relu_layer.ptx -o /tmp/relu-layer-sm80.cubin
-```
-
-This checks assembly for the declared target. It does not execute the kernel.
-
-Check row-selection edge cases, theorem axioms, and correspondence between the
-formal instructions/configuration and the PTX source with:
+Run the theorem audits, contract edge cases, arithmetic oracles and source
+correspondence checks with:
 
 ```sh
+lake build ReluLayer.PTX.Optional.AddressBounds
 lake env lean --run checks/RowSelection.lean
+lake env lean --run checks/AddressCalculation.lean
+lake env lean --run checks/BaseLoading.lean
+lake env lean --run checks/BodyContract.lean
+lake env lean --run checks/DotLoop.lean
+lake env lean --run checks/ReluSuffix.lean
+lake env lean --run checks/BodyExecution.lean
+lake env lean --run checks/KernelExecution.lean
+lake env lean --run checks/FloatArithmetic.lean
+lake env lean --run checks/RealDecode.lean
+lake env lean --run checks/RoundingError.lean
+lake env lean --run checks/SequentialBridge.lean
 ```
 
-The grid check reads the documented launch precondition. The block-size check
-reads `.reqntid`; neither runs a GPU launch.
+With the CUDA toolkit installed, `ptxas -arch=sm_80 -v
+kernels/relu_layer.ptx -o /tmp/relu-layer-sm80.cubin` checks assembly for the
+declared target. It does not execute the kernel.

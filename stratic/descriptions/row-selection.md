@@ -2,9 +2,10 @@
 
 A thread selects its output row by executing two `mov.u32` instructions followed
 by `mad.lo.u32`. Its immutable identity supplies `%tid.x` and `%ctaid.x`; its
-mutable state contains private 32-bit registers and a program counter. Register
-names and operands are explicit. Each instruction reads the incoming register
-state, writes only its destination, and advances the program counter.
+mutable state contains private 32-bit and 64-bit register banks, Boolean
+predicates, a program counter, and a global-memory snapshot. Register names and
+operands are explicit. Each of these three instructions reads the incoming
+register state, writes only its destination, and advances the program counter.
 
 `mov.u32` copies a 32-bit operand. `mad.lo.u32` multiplies two unsigned 32-bit
 operands, keeps the low 32 bits, and adds its third operand modulo `2^32`.
@@ -31,6 +32,7 @@ $$
 
 This bound proves that the computed row does not wrap. It is a property of
 execution through the register updates, independent of the initial contents.
+The block preserves every 64-bit register and the global-memory snapshot.
 The instruction semantics and general theorem contain no layer dimensions or
 chosen launch counts.
 
@@ -39,3 +41,10 @@ rows. Its three-instruction program corresponds to the row-selection fragment
 in `kernels/relu_layer.ptx`. Source correspondence is checked by comparing the
 rendered formal instructions and configured launch against the PTX file; the
 comparison is an executable check, rather than a proved PTX parser.
+
+One state-form theorem accepts arbitrary initial scratch registers and
+predicates, an active thread at PC zero, and arbitrary arithmetic operation
+parameters. It preserves 64-bit registers, memory, predicates, and active status
+while computing the same owned row. Its named `RowResult` contract records
+these facts; `Thread.rowIndex` packages the natural row with its range proof.
+The configured output count agrees with the shared layer output size.

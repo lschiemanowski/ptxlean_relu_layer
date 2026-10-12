@@ -1,0 +1,53 @@
+{
+  "id": "real-relu",
+  "parent": {
+    "description": "fp32-arithmetic",
+    "passage": {
+      "quote": "Converting between kernel words and FloatLib values preserves every bit pattern,\nincluding signed zeros, infinities, and NaN payloads. The adapter's executable\naddition and FMA agree with FloatLib's reference binary32 operations. The\nwhole-kernel theorem specializes to these concrete operations while retaining\nits input-memory assumptions. Single-thread execution does not require output\nseparation."
+    }
+  },
+  "summary": [
+    "Decode finite binary32 words to exact real values, including subnormals and both signed zeros.",
+    "Prove the kernel maximum preserves finiteness and decodes exactly to real ReLU.",
+    "Preserve any absolute-error bound on a finite preactivation through ReLU."
+  ],
+  "realization": "implemented",
+  "links": [
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "Finite binary32 words denote exact real values through FloatLib's decoding.\nBoth signed zeros denote the real number zero. Positive and negative subnormal\nvalues are included; NaNs and infinities are excluded by the finite-input\ncondition."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/RealDecode.lean",
+        "passage": {
+          "quote": "/-- Finite encodings exclude both NaNs and infinities; signed zeros and subnormals are included. -/\ndef isFinite (word : Bits) : Bool := Model.isFinite (decode word)\n\n/-- Exact real value on finite words. FloatLib's total convention returns zero on exceptions. -/\nnoncomputable def toReal (word : Bits) : \u211d := Model.toReal (decode word)\n\nprivate theorem fraction_decode (word : Bits) :\n    Model.fracField (decode word) = fraction word := by\n  change (word &&& BitVec.ofNat 32 (2 ^ fractionBits - 1)).toNat = _\n  rw [BitVec.toNat_and, BitVec.toNat_ofNat,\n    Nat.mod_eq_of_lt (by decide : 2 ^ fractionBits - 1 < 2 ^ 32)]\n  exact Nat.and_two_pow_sub_one_eq_mod _ _\n\nprivate theorem exponent_decode (word : Bits) :\n    Model.expField (decode word) = exponent word := by\n  change ((word >>> fractionBits) &&& BitVec.ofNat 32 (2 ^ exponentBits - 1)).toNat = _\n  rw [BitVec.toNat_and, BitVec.toNat_ofNat,\n    Nat.mod_eq_of_lt (by decide : 2 ^ exponentBits - 1 < 2 ^ 32),\n    Nat.and_two_pow_sub_one_eq_mod, BitVec.toNat_ushiftRight]\n  simp [exponent, Nat.shiftRight_eq_div_pow]\n\nprivate theorem negative_decode (word : Bits) :\n    Model.signBit (decode word) = negative word := by\n  cases hn : negative word\n  \u00b7 have hp := of_decide_eq_false hn\n    apply (Model.signBit_eq_false_iff_toNatBits_lt_signMaskNat (decode word)).2\n    simpa [negative, fractionBits, exponentBits, decode, Model.toNatBits,\n      Model.ofBits, FloatFormat.signMaskNat, FloatFormat.signBitIndex,\n      FloatFormat.binary32, FloatFormat.bitWidth] using Nat.lt_of_not_ge hp\n  \u00b7 have hp := of_decide_eq_true hn\n    apply (Model.signBit_eq_true_iff_signMaskNat_le (decode word)).2\n    simpa [negative, fractionBits, exponentBits, decode, Model.toNatBits,\n      Model.ofBits, FloatFormat.signMaskNat, FloatFormat.signBitIndex,\n      FloatFormat.binary32, FloatFormat.bitWidth] using hp\n\nprivate theorem isNaN_decode (word : Bits) : Model.isNaN (decode word) = isNaN word := by\n  change (Model.expField (decode word) == 2 ^ exponentBits - 1 &&\n    Model.fracField (decode word) != 0) = _\n  rw [exponent_decode, fraction_decode]\n  apply Bool.eq_iff_iff.mpr\n  simp only [isNaN, Bool.and_eq_true, beq_iff_eq, bne_iff_ne, decide_eq_true_eq]\n\n@[simp] theorem isFinite_positiveZero : isFinite positiveZero = true := by decide\n\n@[simp] theorem toReal_positiveZero : toReal positiveZero = 0 :=\n  Model.toReal_zero FloatFormat.binary32 false\n\n/-- The kernel's ReLU output stays finite whenever its input is finite. -/\ntheorem isFinite_maxPositiveZero (word : Bits) (hfinite : isFinite word = true) :\n    isFinite (maxPositiveZero word) = true := by\n  unfold maxPositiveZero\n  split\n  \u00b7 exact isFinite_positiveZero\n  \u00b7 exact hfinite\n\n/-- Decoding finite kernel words turns the selected maximum into real ReLU exactly. -/\ntheorem toReal_maxPositiveZero (word : Bits) (hfinite : isFinite word = true) :\n    toReal (maxPositiveZero word) = max (toReal word) 0 := by\n  have hnan : isNaN word = false := by\n    rw [\u2190 isNaN_decode]\n    exact Model.isNaN_eq_false_of_isFinite_eq_true (decode word) hfinite\n  obtain \u27e8d, hd\u27e9 := Model.exists_toDyadic?_of_isFinite hfinite\n  have hsign : d.negative = negative word :=\n    (Model.sign_eq_signBit_of_toDyadic?_some hd).trans (negative_decode word)\n  have hvalue : toReal word = d.toReal := by\n    unfold toReal\n    rw [Model.toReal_eq, hd]\n  have hmag : 0 \u2264 (d.significand : \u211d) * (2 : \u211d) ^ d.exponent := by positivity\n  cases hn : negative word\n  \u00b7 have hnonneg : 0 \u2264 toReal word := by\n      rw [hvalue, FloatLib.Numerics.Dyadic.toReal,\n        FloatLib.Numerics.Dyadic.cast_signedSignificand, hsign, hn]\n      simpa using hmag\n    simp [maxPositiveZero, hnan, hn, max_eq_left hnonneg]\n  \u00b7 have hnonpos : toReal word \u2264 0 := by\n      rw [hvalue, FloatLib.Numerics.Dyadic.toReal,\n        FloatLib.Numerics.Dyadic.cast_signedSignificand, hsign, hn]\n      simp only [\u2193reduceIte, neg_one_mul]\n      nlinarith\n    simp [maxPositiveZero, hnan, hn, max_eq_right hnonpos]"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "This operation introduces no additional rounding. Its positive result is the\noriginal word, and its zero result is positive zero. Thus an absolute-error\nbound on a finite preactivation remains valid after ReLU:"
+      },
+      "to": {
+        "path": "ReluLayer/PTX/RealDecode.lean",
+        "passage": {
+          "quote": "/-- ReLU cannot increase an absolute discrepancy between real preactivations. -/\ntheorem relu_abs_sub_le (a b : \u211d) : |max a 0 - max b 0| \u2264 |a - b| := by\n  rcases le_total a 0 with ha | ha <;> rcases le_total b 0 with hb | hb\n  \u00b7 simp [max_eq_right ha, max_eq_right hb]\n  \u00b7 rw [max_eq_right ha, max_eq_left hb, abs_of_nonpos (by linarith),\n      abs_of_nonpos (by linarith)]\n    linarith\n  \u00b7 rw [max_eq_left ha, max_eq_right hb, abs_of_nonneg (by linarith),\n      abs_of_nonneg (by linarith)]\n    linarith\n  \u00b7 simp [max_eq_left ha, max_eq_left hb]\n\n/-- Any preactivation error budget passes through the finite bit-pattern ReLU unchanged. -/\ntheorem maxPositiveZero_abs_error_le (word : Bits) (hfinite : isFinite word = true) (z : \u211d) :\n    |toReal (maxPositiveZero word) - max z 0| \u2264 |toReal word - z| := by\n  rw [toReal_maxPositiveZero word hfinite]\n  exact relu_abs_sub_le (toReal word) z"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "Finite binary32 words denote exact real values through FloatLib's decoding.\nBoth signed zeros denote the real number zero. Positive and negative subnormal\nvalues are included; NaNs and infinities are excluded by the finite-input\ncondition."
+      },
+      "to": {
+        "path": "checks/RealDecode.lean",
+        "passage": {
+          "quote": "-- Actual real decoding, not just the executable classification/maximum.\nexample : FP32.toReal 0 = 0 := FP32.toReal_positiveZero\nexample : FP32.toReal 0x80000000 = 0 := Model.toReal_zero FloatFormat.binary32 true\nexample : FP32.toReal 0x3fc00000 = (3 : \u211d) / 2 := by\n  have hd : Model.toDyadic? (FP32.decode 0x3fc00000) =\n      some \u27e8false, 12582912, -23\u27e9 := by decide\n  unfold FP32.toReal\n  rw [Model.toReal_eq, hd]\n  norm_num [FloatLib.Numerics.Dyadic.toReal]\nexample : FP32.toReal (FP32.maxPositiveZero 0xbfc00000) = 0 := by\n  have hword : FP32.maxPositiveZero 0xbfc00000 = 0 := by decide\n  rw [hword]; exact FP32.toReal_positiveZero\n\n-- The bridge remains symbolic for all finite words and arbitrary comparison values.\nexample (word : FP32.Bits) (hfinite : FP32.isFinite word = true) :\n    FP32.toReal (FP32.maxPositiveZero word) = max (FP32.toReal word) 0 :=\n  FP32.toReal_maxPositiveZero word hfinite\nexample (word : FP32.Bits) (hfinite : FP32.isFinite word = true) (z budget : \u211d)\n    (hbudget : |FP32.toReal word - z| \u2264 budget) :\n    |FP32.toReal (FP32.maxPositiveZero word) - max z 0| \u2264 budget :=\n  (FP32.maxPositiveZero_abs_error_le word hfinite z).trans hbudget\nexample : FP32.isFinite 0x7f800000 = false := by decide\nexample : FP32.isFinite 0xff800000 = false := by decide\nexample : FP32.isFinite 0x7fc01234 = false := by decide\nexample : FP32.isFinite 0x7f801234 = false := by decide\nexample : FP32.isFinite 1 = true := by decide\nexample : FP32.isFinite 0x80000001 = true := by decide\nexample : FP32.isFinite 0x7f7fffff = true := by decide\nexample : FP32.maxPositiveZero 0x80000000 = 0 := by decide\n\n#print axioms FP32.isFinite_maxPositiveZero\n#print axioms FP32.toReal_positiveZero\n#print axioms FP32.toReal_maxPositiveZero\n#print axioms FP32.relu_abs_sub_le\n#print axioms FP32.maxPositiveZero_abs_error_le\n\n-- Independent exact rational oracles for the shared finite-value decoder.\ndef main : IO Unit := do\n  let fixtures : List (FP32.Bits \u00d7 Rat \u00d7 FP32.Bits) :=\n    [(0, 0, 0), (0x80000000, 0, 0),\n     (0x3fc00000, 3 / 2, 0x3fc00000), (0xbfc00000, -3 / 2, 0),\n     (1, 1 / (2 ^ 149), 1), (0x80000001, -1 / (2 ^ 149), 0),\n     (0x00800000, 1 / (2 ^ 126), 0x00800000),\n     (0x7f7fffff, (2 ^ 24 - 1) * (2 ^ 104), 0x7f7fffff),\n     (0xff7fffff, -(2 ^ 24 - 1) * (2 ^ 104), 0)]\n  for (word, exactValue, expectedWord) in fixtures do\n    unless FP32.isFinite word && Model.toRat? (FP32.decode word) == some exactValue do\n      throw (IO.userError s!\"Finite exact-value decoding failed for {word.toNat}.\")\n    let output := FP32.maxPositiveZero word\n    unless output == expectedWord && FP32.isFinite output &&\n        Model.toRat? (FP32.decode output) == some (max exactValue 0) do\n      throw (IO.userError s!\"ReLU encoding/value/finite result failed for {word.toNat}.\")\n  for word in [0x7f800000, 0xff800000, 0x7fc01234, 0xff801234] do\n    unless !FP32.isFinite word && (Model.toRat? (FP32.decode word)).isNone do\n      throw (IO.userError \"Exceptional encoding was admitted as a finite real input.\")\n  IO.println \"Finite real/ReLU bridge and error-transfer audits, signed zeros, exact normal/subnormal/extreme values and exceptional-input exclusion pass.\""
+        }
+      }
+    }
+  ]
+}

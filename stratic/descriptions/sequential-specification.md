@@ -1,5 +1,8 @@
 # Sequential specification
 
+The shared `inputSize` and `outputSize` define the concrete dimensions, 1024
+and 3072, for both the specification and PTX layout/launch.
+
 The layer's architecture is an upstream TorchLean `nn.Sequential [1024] [3072]`
 containing `nn.linear 1024 3072` followed by `nn.relu`. The linear layer owns a
 weight tensor of shape `[3072, 1024]` and a bias tensor of shape `[3072]`. ReLU

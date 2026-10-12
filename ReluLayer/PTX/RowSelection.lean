@@ -1,4 +1,5 @@
-import ReluLayer.PTX.Machine
+import ReluLayer.Dimensions
+import ReluLayer.PTX.Registers
 import Mathlib.Data.Nat.Basic
 
 namespace ReluLayer.PTX
@@ -11,6 +12,8 @@ structure Launch where
   threads_pos : 0 < threads
 
 def Launch.rows (cfg : Launch) : Nat := cfg.blocks * cfg.threads
+
+variable {cfg : Launch}
 
 structure Thread (cfg : Launch) where
   block : Fin cfg.blocks
@@ -28,50 +31,59 @@ theorem Thread.row_lt (t : Thread cfg) : t.row < cfg.rows := by
   rw [Nat.mul_comm cfg.blocks cfg.threads]
   omega
 
-/-- Ordinary register names for the selected fragment. -/
-inductive RowReg where
-  | thread | block | row
-  deriving DecidableEq
+/-- The owned row as a valid tensor index; the range proof stays out of public statements. -/
+def Thread.rowIndex (t : Thread cfg) : Fin cfg.rows := ⟨t.row, t.row_lt⟩
 
-/-- The stride is a program parameter, not part of multiply-add semantics. -/
-def rowSelection (threads : Nat) : List (Instruction RowReg) :=
+@[simp] theorem Thread.rowIndex_val (t : Thread cfg) : t.rowIndex.val = t.row := rfl
+
+/-- Two identity loads followed by the configured multiply-add. -/
+def rowSelection (threads : Nat) : List (Instruction Register) :=
   [ .mov .thread .tidX,
     .mov .block .ctaidX,
     .madLo .row (.reg .block) (.imm (BitVec.ofNat 32 threads)) (.reg .thread) ]
 
-private def finalState (cfg : Launch) (t : Thread cfg) (regs : RowReg → Word32) :
-    State RowReg :=
-  let s : State RowReg := ⟨regs, 0⟩
-  let s := s.write .thread t.identity.tidX
+private def finalState (cfg : Launch) (t : Thread cfg) (initial : State Register) : State Register :=
+  let s := initial.write .thread t.identity.tidX
   let s := s.write .block t.identity.ctaidX
   s.write .row (s.regs .block * BitVec.ofNat 32 cfg.threads + s.regs .thread)
 
-private theorem run_eq (cfg : Launch) (t : Thread cfg) (regs : RowReg → Word32) :
-    run (rowSelection cfg.threads) t.identity 3 ⟨regs, 0⟩ =
-      some (finalState cfg t regs) := by
-  simp [run, step, rowSelection, Instruction.execute, Operand.read, State.write, finalState]
+/-- The selected row and the state preserved by the three-instruction block. -/
+structure RowResult (cfg : Launch) (t : Thread cfg) (initial final : State Register) : Prop where
+  pc : final.pc = (rowSelection cfg.threads).length
+  row : (final.regs .row).toNat = t.row
+  regs64 : final.regs64 = initial.regs64
+  memory : final.globalMemory = initial.globalMemory
+  predicates : final.predicates = initial.predicates
+  active : final.returned = initial.returned
+  other32 : ∀ r, r ≠ .thread → r ≠ .block → r ≠ .row → final.regs r = initial.regs r
 
-/-- Executing the fragment succeeds, computes the row without wrap, and stays in range. -/
+/-- Arbitrary scratch values are allowed; a fitting launch computes the owned row without wrap. -/
 theorem rowSelection_correct (cfg : Launch) (hfit : cfg.rows ≤ 2 ^ 32)
-    (t : Thread cfg) (regs : RowReg → Word32) :
-    ∃ s, run (rowSelection cfg.threads) t.identity 3 ⟨regs, 0⟩ = some s ∧
-      s.pc = 3 ∧ (s.regs .row).toNat = t.row ∧ (s.regs .row).toNat < cfg.rows := by
-  have hrow : ((finalState cfg t regs).regs .row).toNat = t.row := by
-    simp only [finalState, State.write, Thread.identity,
-      reduceCtorEq, ↓reduceIte, BitVec.ofNat_mul_ofNat,
-      BitVec.ofNat_add_ofNat, BitVec.toNat_ofNat]
-    rw [Nat.mul_comm t.block.val cfg.threads]
-    exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le t.row_lt hfit)
-  exact ⟨finalState cfg t regs, run_eq cfg t regs, rfl, hrow, by rw [hrow]; exact t.row_lt⟩
+    (t : Thread cfg) (initial : State Register) (hpc : initial.pc = 0)
+    (hactive : initial.returned = false) (env : Environment)
+    (ops : Option FP32.Arithmetic := none) :
+    ∃ final, run (rowSelection cfg.threads) t.identity (rowSelection cfg.threads).length
+        initial env ops = some final ∧ RowResult cfg t initial final := by
+  refine ⟨finalState cfg t initial, ?_, ?_⟩
+  · simp [run, step, rowSelection, Instruction.execute, Operand.read, State.write,
+      finalState, hpc, hactive]
+  · constructor
+    · simp [finalState, State.write, rowSelection, hpc]
+    · simp only [finalState, State.write, Thread.identity,
+        reduceCtorEq, ↓reduceIte, BitVec.ofNat_mul_ofNat,
+        BitVec.ofNat_add_ofNat, BitVec.toNat_ofNat]
+      rw [Nat.mul_comm t.block.val cfg.threads]
+      exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le t.row_lt hfit)
+    · rfl
+    · rfl
+    · rfl
+    · rfl
+    · intro r ht hb hr
+      simp [finalState, State.write, ht, hb, hr]
 
-/-- The sole choice of launch counts for the current concrete kernel. -/
+/-- The launch counts are fixed by the selected PTX; its row count matches the shared shape. -/
 def layerLaunch : Launch := ⟨12, 256, by decide, by decide⟩
 
-theorem layerLaunch_rows : layerLaunch.rows = 3072 := rfl
-
-theorem layer_rowSelection_correct (t : Thread layerLaunch) (regs : RowReg → Word32) :
-    ∃ s, run (rowSelection layerLaunch.threads) t.identity 3 ⟨regs, 0⟩ = some s ∧
-      s.pc = 3 ∧ (s.regs .row).toNat = t.row ∧ (s.regs .row).toNat < 3072 :=
-  rowSelection_correct layerLaunch (by decide) t regs
+theorem layerLaunch_rows : layerLaunch.rows = outputSize := rfl
 
 end ReluLayer.PTX

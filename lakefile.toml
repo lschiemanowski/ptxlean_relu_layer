@@ -1,11 +1,29 @@
 name = "ptxlean_relu_layer"
 version = "0.1.0"
+fixedToolchain = true
 defaultTargets = ["ReluLayer"]
 
 [[require]]
 name = "TorchLean"
 git = "https://github.com/lean-dojo/TorchLean.git"
 rev = "de3192df4779877ceb65cfe470a4d4ce9d480a5b"
+
+# FloatLib is used directly by the kernel's binary32 arithmetic adapter.
+[[require]]
+name = "floatlib"
+git = "https://github.com/lean-dojo/FloatLib"
+rev = "c9a051f08f948ce473036b815b0669fafb61f601"
+
+# Root pins select one compatible dependency graph for all packages.
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4"
+rev = "v4.35.0-rc4"
+
+[[require]]
+name = "doc-gen4"
+git = "https://github.com/leanprover/doc-gen4"
+rev = "v4.35.0-rc4"
 
 [[lean_lib]]
 name = "ReluLayer"

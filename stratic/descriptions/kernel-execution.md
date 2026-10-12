@@ -1,0 +1,35 @@
+# Whole-kernel execution
+
+An active thread starts at the kernel entry with four initialized pointer
+parameters. Their generic addresses are admitted by the configured address
+space. The converted global addresses identify the supplied tensor words. Output
+separation is not required for one thread: its only store follows all reads.
+Scratch registers and predicates may initially contain arbitrary values.
+
+The kernel loads and converts the bases, selects the thread's output row,
+computes the row pointers, and executes the initialized dot loop followed by
+bias addition, maximum with positive zero, store, and return. Launch dimensions
+and input width are parameters. The launch's row count fits in an unsigned
+32-bit register; the weight stride is derived from the input width.
+
+For each valid thread, execution terminates with its output word equal to the
+ordered `rowResult` and every other memory location unchanged. The row register
+contains the owned row and the column counter contains the input width. The
+instruction count is the setup length plus `2 + 8 * inputWidth + 5`.
+The selected 1024-input kernel has 31 static instructions and executes 8215
+instructions per thread.
+
+The four block theorems compose on the actual concatenated instruction list.
+Program relocation shifts the body PC and its branch targets together; the
+loop branches to its actual location in the full kernel. Block boundaries do
+not reset the machine's PC or change registers or memory.
+
+This is an execution theorem for each thread in the abstract word-memory model,
+using supplied FMA and addition operations on binary32 bit patterns. It assumes
+valid word accesses and the input-value contract. A concrete FloatLib specialization supplies binary32 nearest-even addition and
+FMA and identifies the result with FloatLib reference arithmetic. Correspondence
+with PTX arithmetic rules, CUDA memory refinement, concurrent GPU execution,
+and hardware correspondence remain separate obligations. For the selected
+layer and a finite row, the existing numerical bound compares the stored word
+directly with the upstream real-valued Sequential forward coordinate on decoded
+weights, bias and input.

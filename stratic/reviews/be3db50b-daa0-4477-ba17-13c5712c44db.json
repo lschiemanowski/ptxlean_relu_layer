@@ -1,0 +1,438 @@
+{
+  "id": "be3db50b-daa0-4477-ba17-13c5712c44db",
+  "base": "351fbf62572066f852bf59c1382b9e61e65e68cb",
+  "contentTree": "cd1c6f1f65ad4e9c385ede54c696c23dbb31fd7c",
+  "reviewer": "Codex",
+  "summary": "Consolidate the public stored-output Sequential theorem, remove unused single-thread separation hypotheses, unify row contracts and dimensions, isolate optional address bounds, and explain the proof chain",
+  "examined": [
+    {
+      "id": "root",
+      "outcome": "revised",
+      "reason": "Reviewed the complete per-thread proof chain and stored-output headline, with explicit memory and finite-trace contracts. Output separation is no longer required locally; the stronger claim is checked with an aliasing execution. Device/all-thread scope remains unproved."
+    },
+    {
+      "id": "ptx-kernel",
+      "outcome": "revised",
+      "reason": "Reviewed unchanged selected PTX, concrete dimensions, exact instruction forms and full-source comparisons. Documented disjoint/nonwrapping launch buffers remain an intended full-launch contract, while the local formal theorem has weaker input-only assumptions."
+    },
+    {
+      "id": "base-loading",
+      "outcome": "revised",
+      "reason": "Reviewed unchanged parameter/conversion instructions and abstract address-window contract. Address conversion and PC advancement semantics are preserved during this first consolidation pass. The cumulative proposal includes this proved responsibility relative to the original committed base; its implementation is unchanged in the consolidation pass."
+    },
+    {
+      "id": "row-selection",
+      "outcome": "revised",
+      "reason": "Reviewed one state-form theorem with named RowResult, owned-row rowIndex and value simp lemma, arbitrary initial scratch and preservation of unrelated state. Removed register alias, anonymous initial-state public signatures and redundant legacy specializations. Launch counts still match the selected PTX and the shared outputSize."
+    },
+    {
+      "id": "address-calculation",
+      "outcome": "revised",
+      "reason": "Reviewed the unchanged five modular instructions and state contract after register-alias removal. layerLayout uses shared inputSize. Optional natural-address conditions/results are isolated in a separate module excluded from the main kernel proof imports."
+    },
+    {
+      "id": "body-contract",
+      "outcome": "revised",
+      "reason": "Reviewed input-value-only BodyEntry, retained separate optional OutputsSeparated, and OutputStored meaning one row result plus preservation of all other addresses. A selected output alias may overwrite that input address after all reads; the theorem makes no claim that every input is preserved in that case."
+    },
+    {
+      "id": "dot-loop",
+      "outcome": "revised",
+      "reason": "Reviewed the reduced dotLoop_correct conclusion containing only successful execution and the full-width LoopInvariant; exit PC, counter, accumulator and memory facts are obtained from that invariant. Instruction list, recurrence and numerical order are unchanged."
+    },
+    {
+      "id": "relu-suffix",
+      "outcome": "revised",
+      "reason": "Reviewed unchanged load-bias/add/ReLU/store/ret semantics and successful suffix proofs using renamed OutputStored. Store-last behavior supports removal of unused local separation assumptions."
+    },
+    {
+      "id": "kernel-execution",
+      "outcome": "revised",
+      "reason": "Reviewed rowSelection_correct/RowResult field handoff, rowIndex replacements and removal of only the unused separation field from KernelEntry. All four independently proved blocks still compose on the same instruction list. Added aliasing entry and actual execution checks to exercise the strictly weaker premises."
+    },
+    {
+      "id": "sequential-specification",
+      "outcome": "revised",
+      "reason": "Reviewed shared reducible inputSize/outputSize definitions used by the actual upstream nn.Sequential architecture, state shapes and forward-program type. The scalar dimensions and model/parameter-state behavior are unchanged; exact source links cover the new dimension definitions."
+    },
+    {
+      "id": "fp32-arithmetic",
+      "outcome": "revised",
+      "reason": "Reviewed lossless FloatLib adapter and executable/reference refinement with renamed memory result and rowIndex. Public concrete bridge consistently uses floatLibArithmetic; referenceArithmetic remains internal refinement evidence. Separation is no longer a local execution premise."
+    },
+    {
+      "id": "real-forward",
+      "outcome": "revised",
+      "reason": "Reviewed the same actual Sequential evaluation, affine-map and coordinate theorems after replacing literal shape sizes with shared definitions. No graph specification or arithmetic implementation was substituted."
+    },
+    {
+      "id": "real-relu",
+      "outcome": "revised",
+      "reason": "Reviewed unchanged finite decoding, exact real ReLU and nonexpansiveness/error-transfer facts under the same binary32/FloatLib definitions. The cumulative proposal includes this proved responsibility relative to the original committed base; its implementation is unchanged in the consolidation pass."
+    },
+    {
+      "id": "rounding-error",
+      "outcome": "revised",
+      "reason": "Reviewed FiniteRowTrace and traceErrorBudget naming and rowIndex reuse; finite inputs/intermediates and trace-dependent half-ULP accumulation remain unchanged. No input-range, explicit-constant or new numerical estimate was added."
+    },
+    {
+      "id": "sequential-bridge",
+      "outcome": "revised",
+      "reason": "Reviewed the direct existential stored-word headline: exact run, returned flag, output address, universal frame, finite word and existing trace-budget bound against actual Sequential forward at t.rowIndex. Removed public KernelResult/register/PC details and proof-term index conversions; decoded tensor coordinate meanings are unchanged."
+    },
+    {
+      "id": "address-bounds",
+      "outcome": "revised",
+      "reason": "Reviewed the existing no-wrap pointer_value, element_end_le, AddressResult and generic/concrete bounds proofs moved without new semantic claims into Optional/AddressBounds. The optional module is built and its existing small/boundary/wrap checks run."
+    }
+  ],
+  "unresolved": [],
+  "results": [
+    {
+      "tree": "cd1c6f1f65ad4e9c385ede54c696c23dbb31fd7c",
+      "method": "LEAN_NUM_THREADS=4 lake build ReluLayer ReluLayer.PTX.Optional.AddressBounds; then LEAN_NUM_THREADS=1 lake env lean --run checks/{RowSelection,AddressCalculation,BaseLoading,BodyContract,DotLoop,ReluSuffix,BodyExecution,KernelExecution,FloatArithmetic,RealDecode,RoundingError,SequentialBridge}.lean; Stratic validate; inspect source/axioms, exact README headline, unchanged machine/arithmetic/PTX and isolated optional module imports",
+      "outcome": "pass",
+      "environment": "Linux x86_64; Lean 4.35.0-rc4; pinned dependencies and unchanged four scripted compatibility fixes; per-thread abstract word-memory model",
+      "evidence": "Build succeeds (3112 jobs) including the optional address-bounds module. All twelve checkers exit 0 without new unused-simp warnings. A formal KernelEntry is constructed with output/bias aliasing despite false OutputsSeparated; kernel_correct applies and actual execution stores the expected value while preserving another bias location. Concrete 1024-column arithmetic and full PTX instruction/source checks pass. The stored-word Sequential headline has only standard propext, Classical.choice and Quot.sound axioms. No sorry/admit/custom axioms found. Machine, Registers, Environment, FP32 and RealDecode are byte-identical to the consolidation baseline; PTX SHA256 is 9f0fe32284dd65ad4462be4dfb9175ed43a22ac57fb14fb20823eb7a54469f9f. Main modules do not import Optional/AddressBounds. README quotes the exact public theorem. Stratic links validate and expanded impact/unmapped regions are fully accounted for. Selected content trees match before and after checks. Expected pre-existing dependency/import warnings remain.",
+      "tests": [
+        {
+          "id": "lake-build-main-and-optional-address-bounds",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/RowSelection.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/AddressCalculation.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/BaseLoading.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/BodyContract.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/DotLoop.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/ReluSuffix.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/BodyExecution.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/KernelExecution.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/FloatArithmetic.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/RealDecode.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/RoundingError.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/SequentialBridge.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "stratic-validate",
+          "outcome": "pass"
+        }
+      ],
+      "id": "550a7871-c64c-4162-bdc3-cbd87d7b8fad",
+      "recordedAt": "2026-10-11T17:26:38.205Z"
+    }
+  ],
+  "recordedAt": "2026-10-11T17:26:45.991Z",
+  "unmapped": [
+    {
+      "path": "README.md",
+      "reason": "Reviewed the concise public theorem quotation, assumptions and proof-reading path, optional address module and reproducible build/check commands."
+    },
+    {
+      "path": "ReluLayer.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/AddressCalculation.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/BaseLoading.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/BodyContract.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/BodyExecution.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/DotLoop.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/Environment.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/FP32.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/FloatArithmetic.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/KernelExecution.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/Machine.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/ProgramComposition.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/RealDecode.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/Registers.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/ReluSuffix.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/RowSelection.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/TensorMemory.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/AddressCalculation.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/BaseLoading.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/BodyContract.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/BodyExecution.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/DotLoop.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/FloatArithmetic.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/KernelExecution.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/RealDecode.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/ReluSuffix.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/RowSelection.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "lake-manifest.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "lakefile.toml",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "lean-toolchain",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "scripts/prepare_dependencies.py",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/address-calculation.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/address-calculation.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/base-loading.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/base-loading.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/body-contract.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/body-contract.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/dot-loop.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/dot-loop.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/fp32-arithmetic.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/fp32-arithmetic.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/kernel-execution.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/kernel-execution.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/ptx-kernel.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/real-relu.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/real-relu.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/relu-suffix.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/relu-suffix.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/root.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/sequential-specification.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/RoundingError.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/RoundingError.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/rounding-error.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/rounding-error.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/SequentialBridge.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "checks/SequentialBridge.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/sequential-bridge.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/sequential-bridge.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/real-forward.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/Dimensions.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/Specification.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/RealForward.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "ReluLayer/PTX/Optional/AddressBounds.lean",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/address-bounds.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/address-bounds.json",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    },
+    {
+      "path": "stratic/descriptions/sequential-specification.md",
+      "reason": "Meaningful definitions, contracts, proof steps and checks are covered by refreshed exact passage links. Reviewed remaining import/namespace/open/blank/closing lines, shared-shape and API naming changes, description summaries, and isolated optional-module scope."
+    }
+  ]
+}
