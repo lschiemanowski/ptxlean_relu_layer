@@ -1,0 +1,28 @@
+{
+  "id": "launch-separation",
+  "parent": {
+    "description": "body-contract",
+    "passage": {
+      "quote": "It is retained for composing different threads,\nand is not a hypothesis of the single-thread theorem."
+    }
+  },
+  "summary": [
+    "Require output addresses to differ from inputs and from each other as an optional launch-level contract.",
+    "Keep this condition separate from the store-last single-thread correctness theorem."
+  ],
+  "realization": "implemented",
+  "links": [
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "Output addresses can be required to differ from every weight, input and bias\naddress and from each other. `OutputsSeparated` expresses precisely those\nfour families of disequalities in the modular word-address model. Read-only\ninput addresses may overlap when their specified values agree."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/Optional/Separation.lean",
+        "passage": {
+          "quote": "import ReluLayer.PTX.TensorMemory\n\nnamespace ReluLayer.PTX\n\n/-- Optional launch-level separation; single-thread correctness does not require it. -/\nstructure OutputsSeparated (layout : Layout) (rows : Nat) (buffers : Buffers) : Prop where\n  weights : \u2200 (i r : Fin rows) (j : Fin layout.inputWidth),\n    elementAddress buffers .output i.val \u2260 weightAddress layout buffers r.val j.val\n  input : \u2200 (i : Fin rows) (j : Fin layout.inputWidth),\n    elementAddress buffers .output i.val \u2260 elementAddress buffers .input j.val\n  bias : \u2200 (i r : Fin rows),\n    elementAddress buffers .output i.val \u2260 elementAddress buffers .bias r.val\n  outputs : \u2200 (i r : Fin rows), i \u2260 r \u2192\n    elementAddress buffers .output i.val \u2260 elementAddress buffers .output r.val\n\nend ReluLayer.PTX"
+        }
+      }
+    }
+  ]
+}

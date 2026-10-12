@@ -44,7 +44,8 @@ comparison is an executable check, rather than a proved PTX parser.
 
 One state-form theorem accepts arbitrary initial scratch registers and
 predicates, an active thread at PC zero, and arbitrary arithmetic operation
-parameters. It preserves 64-bit registers, memory, predicates, and active status
+context. The context identity equals the selected thread identity. It preserves 64-bit registers, memory, predicates, and active status
 while computing the same owned row. Its named `RowResult` contract records
 these facts; `Thread.rowIndex` packages the natural row with its range proof.
-The configured output count agrees with the shared layer output size.
+The concrete launch and layout are defined together in `Layer.lean`; its output
+count agrees with the shared layer output size.

@@ -1,3 +1,4 @@
+import ReluLayer.PTX.Layer
 import ReluLayer.PTX.BodyExecution
 
 open ReluLayer.PTX
@@ -32,10 +33,10 @@ private theorem entry : BodyEntry layout 2 buffers data 1 initial := by
   all_goals decide
 
 private def executed : Option (State Register) :=
-  run (bodyProgram 2) ⟨0, 0⟩ (bodySteps 2) initial Environment.empty (some ops)
+  run (bodyProgram 2) ⟨⟨0, 0⟩, Environment.empty, ops⟩ (bodySteps 2) initial
 
 -- The appended program crosses the loop/suffix boundary with no PC reset.
-example : ((run (bodyProgram 2) ⟨0, 0⟩ 18 initial Environment.empty (some ops)).map
+example : ((run (bodyProgram 2) ⟨⟨0, 0⟩, Environment.empty, ops⟩ 18 initial).map
     (fun s => (s.pc, s.returned, (s.regs .accumulator).toNat))) = some (10, false, 90) := by decide
 example : executed.map (fun s => (s.pc, s.returned)) = some (15, true) := by decide
 example : executed.map (fun s => ((s.regs .column).toNat, (s.regs .result).toNat)) = some (2, 98) := by decide
@@ -44,9 +45,9 @@ example : executed.bind (fun s => s.globalMemory 28) = some 8 := by decide
 example : executed.bind (fun s => s.globalMemory 32) = some 0x3f800000 := by decide
 example : executed.map (fun s => ((s.regs .row).toNat, (s.regs64 .biasRead).toNat,
     (s.regs64 .outputWrite).toNat)) = some (1, 28, 36) := by decide
-example : ∃ final, run (bodyProgram 2) ⟨0, 0⟩ (bodySteps 2) initial Environment.empty (some ops) = some final ∧
+example : ∃ final, run (bodyProgram 2) ⟨⟨0, 0⟩, Environment.empty, ops⟩ (bodySteps 2) initial = some final ∧
     BodyResult ops data buffers 1 initial final :=
-  body_correct ops data buffers 1 initial ⟨0, 0⟩ Environment.empty entry
+  body_correct ⟨⟨0, 0⟩, Environment.empty, ops⟩ data buffers 1 initial entry
 
 -- The generalized suffix theorem also applies after a non-loop prelude.
 private def prelude : List (Instruction Register) := [.mov .row (.imm 1), .mov .column (.imm 2)]
@@ -54,9 +55,9 @@ private def suffixInitial : State Register :=
   { initial with pc := prelude.length, regs := fun r => if r = .accumulator then 90 else initial.regs r }
 private theorem suffixEntry : SuffixEntry ops data buffers 1 suffixInitial prelude.length := by
   constructor <;> decide
-example : ∃ final, run (prelude ++ reluSuffix) ⟨0, 0⟩ 5 suffixInitial Environment.empty (some ops) = some final ∧
+example : ∃ final, run (prelude ++ reluSuffix) ⟨⟨0, 0⟩, Environment.empty, ops⟩ 5 suffixInitial = some final ∧
     SuffixResult ops data buffers 1 suffixInitial final prelude.length :=
-  reluSuffix_correct_at prelude ops data buffers 1 suffixInitial ⟨0, 0⟩ Environment.empty suffixEntry
+  reluSuffix_correct_at prelude ⟨⟨0, 0⟩, Environment.empty, ops⟩ data buffers 1 suffixInitial suffixEntry
 
 #print axioms run_append_of_run
 #print axioms reluSuffix_correct_at
@@ -83,8 +84,8 @@ def main (args : List String) : IO Unit := do
     globalMemory := fun a => if a.toNat < 4096 then some 2
       else if 8192 ≤ a.toNat && a.toNat < 12288 then some 3
       else if a = 16380 then some 1 else if a = 16388 then some 0x3f800000 else none }
-  match run (bodyProgram layerLayout.inputWidth) ⟨0, 0⟩
-      (bodySteps layerLayout.inputWidth) fullInitial Environment.empty (some sumOps) with
+  match run (bodyProgram layerLayout.inputWidth) ⟨⟨0, 0⟩, Environment.empty, sumOps⟩
+      (bodySteps layerLayout.inputWidth) fullInitial with
   | none => throw (IO.userError "Full-width body execution failed.")
   | some final =>
     unless final.pc == (bodyProgram layerLayout.inputWidth).length && final.returned &&

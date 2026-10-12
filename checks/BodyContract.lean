@@ -1,3 +1,4 @@
+import ReluLayer.PTX.Optional.Separation
 import ReluLayer.PTX.BodyContract
 
 open ReluLayer.PTX
@@ -80,6 +81,7 @@ private def traceOps : FP32.Arithmetic := ⟨fun w x acc => acc * 10 + w + x, fu
 example : prefixAccumulator traceOps data 0 0 = 0 := by decide
 example : prefixAccumulator traceOps data 0 1 = 6 := by decide
 example : prefixAccumulator traceOps data 0 2 = 68 := by decide
+example : prefixAccumulator traceOps data 0 3 = 68 := by decide
 example : rowResult traceOps data 0 = 75 := by decide
 example : rowResult traceOps data 1 = 98 := by decide
 

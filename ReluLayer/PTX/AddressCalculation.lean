@@ -22,17 +22,17 @@ def addressCalculation (inputWidth : Nat) : List (Instruction Register) :=
     .add64 .outputWrite (.reg .outputBase) (.reg .elementOffset) ]
 
 private def finalState (width : Nat) (initial : State Register) : State Register :=
-  let s := initial.write64 .rowOffset
+  let s := initial.write64Next .rowOffset
     (wideProduct (initial.regs .row) (BitVec.ofNat 32 (width * fp32Bytes)))
-  let s := s.write64 .elementOffset
+  let s := s.write64Next .elementOffset
     (wideProduct (s.regs .row) (BitVec.ofNat 32 fp32Bytes))
-  let s := s.write64 .weightRead (s.regs64 .weightBase + s.regs64 .rowOffset)
-  let s := s.write64 .biasRead (s.regs64 .biasBase + s.regs64 .elementOffset)
-  s.write64 .outputWrite (s.regs64 .outputBase + s.regs64 .elementOffset)
+  let s := s.write64Next .weightRead (s.regs64 .weightBase + s.regs64 .rowOffset)
+  let s := s.write64Next .biasRead (s.regs64 .biasBase + s.regs64 .elementOffset)
+  s.write64Next .outputWrite (s.regs64 .outputBase + s.regs64 .elementOffset)
 
 /-- Word-level execution facts hold even when pointer addition wraps. -/
 structure AddressWords (width : Nat) (initial final : State Register) : Prop where
-  pc : final.pc = 5
+  pc : final.pc = (addressCalculation width).length
   regs32 : final.regs = initial.regs
   memory : final.globalMemory = initial.globalMemory
   predicates : final.predicates = initial.predicates
@@ -52,19 +52,14 @@ structure AddressWords (width : Nat) (initial final : State Register) : Prop whe
   output : final.regs64 .outputWrite = initial.regs64 .outputBase +
     wideProduct (initial.regs .row) (BitVec.ofNat 32 fp32Bytes)
 
-theorem addressCalculation_exec (width : Nat) (id : Identity)
-    (initial : State Register) (hpc : initial.pc = 0) (env : Environment) (hactive : initial.returned = false)
-    (ops : Option FP32.Arithmetic := none) :
-    ∃ final, run (addressCalculation width) id 5 initial env ops = some final ∧
+theorem addressCalculation_exec (width : Nat) (ctx : ExecutionContext)
+    (initial : State Register) (hpc : initial.pc = 0) (hactive : initial.returned = false) :
+    ∃ final, run (addressCalculation width) ctx (addressCalculation width).length initial = some
+        final ∧
       AddressWords width initial final := by
   refine ⟨finalState width initial, ?_, ?_⟩
   · simp [run, step, addressCalculation, Instruction.execute, Operand.read,
-      Operand64.read, State.write64, finalState, hpc, hactive]
-  · constructor <;> simp [finalState, State.write64, hpc]
-
-def layerLayout : Layout := ⟨inputSize, by decide, by decide⟩
-
-theorem layer_rowStride : layerLayout.rowStride = 4096 := rfl
-
+      Operand64.read, State.write64Next, finalState, hpc, hactive]
+  · constructor <;> simp [finalState, State.write64Next, addressCalculation, hpc]
 
 end ReluLayer.PTX

@@ -1,3 +1,5 @@
+import ReluLayer.PTX.Optional.Separation
+import ReluLayer.PTX.Layer
 import ReluLayer.PTX.KernelExecution
 
 open ReluLayer.PTX
@@ -10,7 +12,10 @@ private def env : Environment :=
   { params := fun symbol => if symbol = "W_ptr" then some 1000
       else if symbol = "x_ptr" then some 1032 else if symbol = "b_ptr" then some 1040
       else if symbol = "y_ptr" then some 1064 else none
-    space := ⟨⟨1000, 1000, by decide⟩, []⟩ }
+    toGlobal := fun a => if 1000 ≤ a.toNat && a.toNat < 2000 then
+      some (BitVec.ofNat 64 (a.toNat - 1000)) else none }
+private def buffers : Buffers := fun arg => BitVec.ofNat 64 ((args arg).toNat - 1000)
+
 private def data : TensorData layout cfg.rows :=
   ⟨fun i j => BitVec.ofNat 32 (i.val * 2 + j.val + 1),
     fun j => BitVec.ofNat 32 (j.val + 5), fun i => BitVec.ofNat 32 (i.val + 7)⟩
@@ -27,9 +32,9 @@ private def initial : State Register :=
 private def ops : FP32.Arithmetic := ⟨fun w x acc => acc * 10 + w + x, fun a b => a + b⟩
 private def thread : Thread cfg := ⟨⟨1, by decide⟩, ⟨0, by decide⟩⟩
 private def executed (fuel : Nat) :=
-  run (kernelProgram cfg layout) thread.identity fuel initial env (some ops)
+  run (kernelProgram cfg layout) ⟨thread.identity, env, ops⟩ fuel initial
 
-private theorem entry : KernelEntry cfg layout env args data initial := by
+private theorem entry : KernelEntry cfg layout env args buffers data initial := by
   constructor
   · rfl
   · rfl
@@ -39,8 +44,8 @@ private theorem entry : KernelEntry cfg layout env args data initial := by
 
 -- Full execution reuses the theorem for arbitrary launch counts and input width.
 example : ∃ final, executed (kernelSteps cfg layout) = some final ∧
-    KernelResult cfg layout ops data (convertedBuffers env args) thread initial final :=
-  kernel_correct cfg layout (by decide) ops data env args thread initial entry
+    KernelResult cfg layout ops data buffers thread initial final :=
+  kernel_correct cfg layout (by decide) ⟨thread.identity, env, ops⟩ data args buffers thread rfl initial entry
 
 -- The only store follows all reads: output/bias aliasing is valid for one thread.
 private def aliasArgs : Argument → Word64 :=
@@ -48,24 +53,22 @@ private def aliasArgs : Argument → Word64 :=
 private def aliasEnv : Environment :=
   { env with params := fun symbol =>
       if symbol = "y_ptr" then some (args .bias) else env.params symbol }
-private theorem aliasEntry : KernelEntry cfg layout aliasEnv aliasArgs data initial := by
+private def aliasBuffers : Buffers := fun arg => if arg = .output then buffers .bias else buffers arg
+private theorem aliasEntry : KernelEntry cfg layout aliasEnv aliasArgs aliasBuffers data initial := by
   constructor
   · rfl
   · rfl
   · intro arg; cases arg <;> decide
   · intro arg; cases arg <;> decide
   · constructor <;> decide
-example : ¬ OutputsSeparated layout cfg.rows (convertedBuffers aliasEnv aliasArgs) := by
+example : ¬ OutputsSeparated layout cfg.rows aliasBuffers := by
   intro h
   exact h.bias ⟨0, by decide⟩ ⟨0, by decide⟩ rfl
-example : ∃ final, run (kernelProgram cfg layout) thread.identity (kernelSteps cfg layout)
-    initial aliasEnv (some ops) = some final ∧
-    KernelResult cfg layout ops data (convertedBuffers aliasEnv aliasArgs) thread initial final :=
-  kernel_correct cfg layout (by decide) ops data aliasEnv aliasArgs thread initial aliasEntry
-example : (run (kernelProgram cfg layout) thread.identity (kernelSteps cfg layout)
-    initial aliasEnv (some ops)).bind (fun s => s.globalMemory 48) = some 121 := by decide
-example : (run (kernelProgram cfg layout) thread.identity (kernelSteps cfg layout)
-    initial aliasEnv (some ops)).bind (fun s => s.globalMemory 40) = some 7 := by decide
+example : ∃ final, run (kernelProgram cfg layout) ⟨thread.identity, aliasEnv, ops⟩ (kernelSteps cfg layout) initial = some final ∧
+    KernelResult cfg layout ops data aliasBuffers thread initial final :=
+  kernel_correct cfg layout (by decide) ⟨thread.identity, aliasEnv, ops⟩ data aliasArgs aliasBuffers thread rfl initial aliasEntry
+example : (run (kernelProgram cfg layout) ⟨thread.identity, aliasEnv, ops⟩ (kernelSteps cfg layout) initial).bind (fun s => s.globalMemory 48) = some 121 := by decide
+example : (run (kernelProgram cfg layout) ⟨thread.identity, aliasEnv, ops⟩ (kernelSteps cfg layout) initial).bind (fun s => s.globalMemory 40) = some 7 := by decide
 
 -- Actual PCs at all block boundaries, including the taken and untaken loop branch.
 example : (executed 8).map (fun s => (s.pc, (s.regs64 .inputRead).toNat)) = some (8, 32) := by decide
@@ -85,16 +88,12 @@ example : (kernelProgram layerLaunch layerLayout).length = 31 := rfl
 example : kernelSteps layerLaunch layerLayout = 8215 := rfl
 example : (kernelProgram layerLaunch layerLayout)[18]? = some (.loadF32 .weightValue (.reg .weightRead)) := rfl
 example : (kernelProgram layerLaunch layerLayout)[25]? = some (.branchIf .more 18) := rfl
-example : run (kernelProgram cfg layout) thread.identity 1 initial
-    { env with params := fun _ => none } (some ops) = none := by decide
-example : run (kernelProgram cfg layout) thread.identity 8 initial
-    { env with space := Environment.empty.space } (some ops) = none := by decide
-example : run (kernelProgram cfg layout) thread.identity 39 initial env none = none := by decide
+example : run (kernelProgram cfg layout) ⟨thread.identity, { env with params := fun _ => none }, ops⟩ 1 initial = none := by decide
+example : run (kernelProgram cfg layout) ⟨thread.identity, { env with toGlobal := fun _ => none }, ops⟩ 8 initial = none := by decide
 
 #print axioms run_relocate
 #print axioms rowSelection_correct
 #print axioms kernel_correct
-#print axioms layer_kernel_correct
 
 private def expectedSource : String :=
   let offset := (kernelSetup layerLaunch layerLayout).length + dotLoopStart
@@ -115,8 +114,7 @@ def main (argv : List String) : IO Unit := do
     for tid in [:cfg.threads] do
       let row := cfg.threads * block + tid
       let expected := 10 * (2 * row + 1 + 5) + (2 * row + 2 + 6) + (row + 7)
-      match run (kernelProgram cfg layout) ⟨BitVec.ofNat 32 tid, BitVec.ofNat 32 block⟩
-          (kernelSteps cfg layout) initial env (some ops) with
+      match run (kernelProgram cfg layout) ⟨⟨BitVec.ofNat 32 tid, BitVec.ofNat 32 block⟩, env, ops⟩ (kernelSteps cfg layout) initial with
       | none => throw (IO.userError "Small-launch kernel execution failed.")
       | some final =>
         unless final.returned && final.pc == 31 && final.regs .row == BitVec.ofNat 32 row &&
@@ -139,16 +137,14 @@ def main (argv : List String) : IO Unit := do
         else if symbol = "x_ptr" then some (fullArgs .input)
         else if symbol = "b_ptr" then some (fullArgs .bias)
         else if symbol = "y_ptr" then some (fullArgs .output) else none
-      space := ⟨⟨1000, 2 ^ 24, by decide⟩, []⟩ }
+      toGlobal := fun a => some (BitVec.ofNat 64 (a.toNat - 1000)) }
   let fullInitial : State Register := { initial with
     globalMemory := fun a =>
       if a.toNat < weightBytes then some 2
       else if a.toNat < bBase then some 3
       else if a.toNat < yBase then some 1 else some 0x3f800000 }
   for row in [0, 256, layerLaunch.rows - 1] do
-    match run (kernelProgram layerLaunch layerLayout)
-        ⟨BitVec.ofNat 32 (row % layerLaunch.threads), BitVec.ofNat 32 (row / layerLaunch.threads)⟩
-        (kernelSteps layerLaunch layerLayout) fullInitial fullEnv (some sumOps) with
+    match run (kernelProgram layerLaunch layerLayout) ⟨⟨BitVec.ofNat 32 (row % layerLaunch.threads), BitVec.ofNat 32 (row / layerLaunch.threads)⟩, fullEnv, sumOps⟩ (kernelSteps layerLaunch layerLayout) fullInitial with
     | none => throw (IO.userError "Full-width kernel execution failed.")
     | some final =>
       let output := BitVec.ofNat 64 (yBase + row * fp32Bytes)

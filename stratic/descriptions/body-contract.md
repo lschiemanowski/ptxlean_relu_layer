@@ -19,13 +19,15 @@ is updated, and every other address keeps its initial contents. Read-only
 inputs may overlap when their specified values agree. No initial contents are
 required for a separate output location.
 
-`OutputsSeparated` is an optional launch-level contract excluding output/input
+`OutputsSeparated`, in the optional separation module, is a launch-level contract excluding output/input
 and output/output overlap. It is retained for composing different threads,
 and is not a hypothesis of the single-thread theorem.
 
-The ordered result starts from positive zero and folds an FMA over columns
+The ordered result starts from positive zero and recursively applies an FMA over columns
 `0` through `n - 1`, then performs one bias addition and a maximum with positive
-zero. The prefix accumulator records the same fold over the first `k` columns:
+zero. The prefix accumulator records the same recurrence over the first `k` columns.
+Beyond the input width it stays at the complete accumulator. Generic
+`preactivation` adds the bias once and is shared with the numerical analysis:
 
 $$
 a_0=+0,\qquad a_{j+1}=\operatorname{fmaRN}(W_{ij},x_j,a_j),

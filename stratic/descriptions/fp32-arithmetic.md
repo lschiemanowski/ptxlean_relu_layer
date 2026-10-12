@@ -8,8 +8,8 @@ product-plus-addend once; it is not separate rounded multiplication and addition
 Converting between kernel words and FloatLib values preserves every bit pattern,
 including signed zeros, infinities, and NaN payloads. The adapter's executable
 addition and FMA agree with FloatLib's reference binary32 operations. The
-whole-kernel theorem specializes to these concrete operations while retaining
-its input-memory assumptions. Single-thread execution does not require output
+whole-kernel theorem uses these concrete operations with explicit input-memory
+and address-conversion assumptions. Single-thread execution does not require output
 separation.
 
 PTX's single-precision arithmetic does not prescribe a unique NaN encoding.

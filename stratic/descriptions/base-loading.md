@@ -13,30 +13,29 @@ layout are outside this representation. The rule follows NVIDIA's
 [load instruction](https://docs.nvidia.com/cuda/archive/12.0.1/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-ld)
 description.
 
-The address-space configuration supplies a bounded global window and a list
-of excluded windows for other state spaces. A generic pointer is admitted
-when it lies within the global window and outside the excluded windows.
-`cvta.to.global.u64` converts it by subtracting the global-window base.
+The environment supplies a partial generic-to-global conversion function.
+The theorem explicitly assumes each of the four generic arguments converts to
+its supplied global buffer address. No window arithmetic or device pointer
+representation is inferred from this contract.
+
 The conversion reads the incoming register value, including when source and
-destination are the same register. The window bounds prevent subtraction or
-representation wraparound for admitted pointers. This is the selected window
-model described by NVIDIA's [generic addressing](https://docs.nvidia.com/cuda/archive/12.0.1/parallel-thread-execution/index.html#generic-addressing)
-and [address conversion](https://docs.nvidia.com/cuda/archive/12.0.1/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cvta)
-sections. The window configuration is an explicit environment assumption;
-its correspondence to a CUDA device is not proved.
+destination are the same register. Its result is the supplied global address.
+The function is an explicit environment assumption; correspondence with CUDA
+pointer representation or hardware conversion is not proved.
 
 The execution rules return no modeled successor for a missing parameter slot
-or a pointer outside the admitted global region. This restricts the model to
+or a generic pointer for which the conversion function returns `none`. This restricts the model to
 valid uses of these instructions. NVIDIA leaves invalid address conversions
 undefined; the absence of a modeled successor does not specify a GPU trap.
 
 The block theorem assumes all four named slots contain the supplied generic
-pointers and that each pointer is admitted by the address-space configuration.
+pointers and that each converts successfully to the corresponding supplied
+buffer address.
 Starting with an active thread at fragment-relative PC zero, all eight
-instructions succeeds. The final program counter is eight, and every target
+instructions succeed. The final program counter is eight, and every target
 register contains the converted address of its corresponding parameter.
 Every 32-bit register, every other 64-bit register, and the global-memory word
-map are preserved. The parameter and address-space environment is read-only.
+map are preserved. The parameter and conversion environment is read-only.
 
 All kernel fragments use the same register-name type and machine state.
 Their theorems remain separate. The eight formal instructions and the four

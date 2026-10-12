@@ -2,23 +2,29 @@ import ReluLayer.PTX.TensorMemory
 
 namespace ReluLayer.PTX
 
-/-- Column order is carried by Fin enumeration, not an unordered sum. -/
-def rowTerms (data : TensorData layout rows) (i : Fin rows) : List (FP32.Bits × FP32.Bits) :=
-  List.ofFn (fun j => (data.weights i j, data.input j))
+variable {layout : Layout} {rows : Nat}
 
-/-- First k FMA updates from positive zero, using the supplied arithmetic operations. -/
+/-- Ordered FMA recurrence; after the last column the accumulator stays unchanged. -/
 def prefixAccumulator (ops : FP32.Arithmetic) (data : TensorData layout rows)
-    (i : Fin rows) (k : Nat) : FP32.Bits :=
-  ((rowTerms data i).take k).foldl
-    (fun acc term => ops.fmaRN term.1 term.2 acc) FP32.positiveZero
+    (i : Fin rows) : Nat → FP32.Bits
+  | 0 => FP32.positiveZero
+  | k + 1 =>
+      if hk : k < layout.inputWidth then
+        ops.fmaRN (data.weights i ⟨k, hk⟩) (data.input ⟨k, hk⟩)
+          (prefixAccumulator ops data i k)
+      else prefixAccumulator ops data i k
 
 @[simp] theorem prefixAccumulator_zero (ops : FP32.Arithmetic)
     (data : TensorData layout rows) (i : Fin rows) :
-    prefixAccumulator ops data i 0 = FP32.positiveZero := by
-  simp [prefixAccumulator]
+    prefixAccumulator ops data i 0 = FP32.positiveZero := rfl
+
+/-- Rounded bias addition, shared by the bit-level result and numerical analysis. -/
+def preactivation (ops : FP32.Arithmetic) (data : TensorData layout rows)
+    (i : Fin rows) : FP32.Bits :=
+  ops.addRN (prefixAccumulator ops data i layout.inputWidth) (data.bias i)
 
 def rowResult (ops : FP32.Arithmetic) (data : TensorData layout rows) (i : Fin rows) : FP32.Bits :=
-  FP32.maxPositiveZero (ops.addRN (prefixAccumulator ops data i layout.inputWidth) (data.bias i))
+  FP32.maxPositiveZero (preactivation ops data i)
 
 /-- Entry to the independent fragment at PTX line 43; scratch contents are unrestricted. -/
 structure BodyEntry (layout : Layout) (rows : Nat)

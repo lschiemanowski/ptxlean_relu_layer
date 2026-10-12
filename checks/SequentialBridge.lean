@@ -1,3 +1,4 @@
+import ReluLayer.PTX.Layer
 import ReluLayer.SequentialBridge
 
 open ReluLayer.PTX TorchLean TorchLean.Tensor

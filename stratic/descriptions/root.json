@@ -5,12 +5,25 @@
     "Formalize a PTX implementation of a 1024-input, 3072-output dense ReLU layer and relate its stored output to an upstream TorchLean nn.Sequential specification with explicit weights and bias.",
     "Cover one forward layer for one input vector, with the PTX instruction forms, machine state, and execution rules required by its kernel.",
     "Execute the concatenated four-block kernel per thread through return, store its ordered row result and preserve every other memory word.",
-    "Specialize execution to concrete FloatLib binary32 addition and FMA with a reference-arithmetic result.",
+    "Use concrete FloatLib binary32 addition and FMA, with direct proofs of agreement with their reference operations.",
     "Decode finite preactivations and prove exact real ReLU with preservation of absolute-error bounds.",
     "Bound the finite ordered FMA and bias-addition error by accumulated local half-ULP terms; ReLU preserves this bound on the stored row result.",
     "Connect the finite stored kernel result directly to the real-valued upstream nn.Sequential forward coordinate on decoded inputs, using the existing rounding budget."
   ],
   "realization": "partial",
   "remaining": "The per-thread modeled kernel is connected to the actual real-valued TorchLean Sequential forward coordinate on decoded inputs, under the existing memory and finite-row contracts and accumulated rounding budget. PTX arithmetic adequacy, CUDA memory refinement, concurrent GPU execution and hardware correspondence remain unproved.",
-  "links": []
+  "links": [
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "This project formalizes in Lean a PTX implementation of the forward map"
+      },
+      "to": {
+        "path": "ReluLayer/SequentialBridge.lean",
+        "passage": {
+          "quote": "import ReluLayer.RealForward\nimport ReluLayer.PTX.RoundingError\n\nnamespace ReluLayer.PTX\n\nopen TorchLean TorchLean.Tensor\n\nnoncomputable section\n\n/-- Real tensors use exactly the values represented by the kernel's input words. -/\ndef decodedWeights (data : TensorData layerLayout layerLaunch.rows) : Tensor \u211d [outputSize,\n    inputSize] :=\n  Tensor.dim fun i => Tensor.dim fun j => Tensor.scalar (FP32.toReal (data.weights i j))\n\ndef decodedBias (data : TensorData layerLayout layerLaunch.rows) : Tensor \u211d [outputSize] :=\n  Tensor.dim fun i => Tensor.scalar (FP32.toReal (data.bias i))\n\ndef decodedInput (data : TensorData layerLayout layerLaunch.rows) : Tensor \u211d [inputSize] :=\n  Tensor.dim fun j => Tensor.scalar (FP32.toReal (data.input j))\n\n/-- The numerical target is a coordinate of the actual upstream sequential forward output. -/\ntheorem exactRowResult_eq_forward (data : TensorData layerLayout layerLaunch.rows)\n    (i : Fin outputSize) :\n    exactRowResult data i =\n      getScalar (ReluLayer.forward (decodedWeights data) (decodedBias data) (decodedInput data))\n          i := by\n  rw [ReluLayer.forward_coordinate]\n  simp [exactRowResult, decodedWeights, decodedBias, decodedInput,\n    Spec.get2_eq_apply, getScalar_eq_apply, Tensor.dim,\n    Tensor.Internal.Rep.stack_apply, Tensor.scalar_apply]\n  rfl\n\n/-- Concrete binary32 context for the selected kernel thread. -/\ndef layerContext (t : Thread layerLaunch) (env : Environment) : ExecutionContext :=\n  t.context env FP32.floatLibArithmetic\n\n/-- Return and store a finite word close to the actual Sequential forward coordinate. -/\ntheorem layer_kernel_forward_abs_error_le (data : TensorData layerLayout layerLaunch.rows)\n    (env : Environment) (args : Argument \u2192 Word64) (buffers : Buffers) (t : Thread layerLaunch)\n    (initial : State Register)\n    (hentry : KernelEntry layerLaunch layerLayout env args buffers data initial)\n    (hfinite : FiniteRowTrace data t.rowIndex) :\n    \u2203 final word,\n      Returns (kernelProgram layerLaunch layerLayout) (layerContext t env) initial final \u2227\n      final.globalMemory (t.outputAddress buffers) = some word \u2227\n      (\u2200 address, address \u2260 t.outputAddress buffers \u2192\n        final.globalMemory address = initial.globalMemory address) \u2227\n      FP32.isFinite word = true \u2227\n      |FP32.toReal word -\n        getScalar (ReluLayer.forward (decodedWeights data) (decodedBias data) (decodedInput data))\n          t.rowIndex| \u2264 traceErrorBudget data t.rowIndex := by\n  obtain \u27e8final, hexec, hr, hf, he\u27e9 := kernel_abs_error_le layerLaunch layerLayout\n    (by decide) data env args buffers t initial hentry hfinite\n  refine \u27e8final, final.regs .result, \u27e8\u27e8kernelSteps layerLaunch layerLayout, hexec\u27e9,\n    hr.returned\u27e9, ?_, hr.memory.frame, hf, ?_\u27e9\n  \u00b7 rw [hr.result]\n    exact hr.memory.output\n  \u00b7 have htarget := exactRowResult_eq_forward data t.rowIndex\n    calc\n      _ = |FP32.toReal (final.regs .result) - exactRowResult data t.rowIndex| :=\n        (congrArg (fun value => |FP32.toReal (final.regs .result) - value|) htarget).symm\n      _ \u2264 traceErrorBudget data t.rowIndex := he\n\nend\nend ReluLayer.PTX"
+        }
+      }
+    }
+  ]
 }

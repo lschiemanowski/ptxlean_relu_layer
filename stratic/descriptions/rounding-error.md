@@ -27,6 +27,8 @@ dense-ReLU formula by at most that FMA budget plus the bias-addition bound.
 The ReLU step adds no error term. The same budget therefore bounds the decoded
 word stored by the existing concrete kernel execution theorem.
 
+The public budget is a finite sum over the input-column indices plus the
+bias-addition term. Prefix sums used in its induction proof are internal.
 The budget follows the executed accumulator values. It is not an input-only
 relative-error estimate. No overflow-free input range, NaN/infinity behavior,
 PTX arithmetic adequacy, or GPU hardware correspondence is established by this

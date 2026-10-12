@@ -1,3 +1,5 @@
+import ReluLayer.PTX.KernelExecution
+import ReluLayer.PTX.Layer
 import ReluLayer.PTX.FloatArithmetic
 
 open ReluLayer.PTX
@@ -5,16 +7,15 @@ open ReluLayer.PTX
 -- Exact bit preservation includes NaN payloads and both signed zeros.
 example (word : FP32.Bits) : FP32.encode (FP32.decode word) = word := FP32.encode_decode word
 example (a b : FP32.Bits) :
-    FP32.floatLibArithmetic.addRN a b = FP32.referenceArithmetic.addRN a b :=
+    FP32.floatLibArithmetic.addRN a b = FP32.encode (FloatLib.Floats.Formats.BinaryInterchange.Model.Spec.add (FP32.decode a) (FP32.decode b)) :=
   FP32.addRN_eq_reference a b
 example (a b c : FP32.Bits) :
-    FP32.floatLibArithmetic.fmaRN a b c = FP32.referenceArithmetic.fmaRN a b c :=
+    FP32.floatLibArithmetic.fmaRN a b c = FP32.encode (FloatLib.Floats.Formats.BinaryInterchange.Model.Spec.fma (FP32.decode a) (FP32.decode b) (FP32.decode c)) :=
   FP32.fmaRN_eq_reference a b c
 
 #print axioms FP32.encode_decode
 #print axioms FP32.addRN_eq_reference
 #print axioms FP32.fmaRN_eq_reference
-#print axioms layer_kernel_floatLib_correct
 
 private def assertWord (name : String) (actual expected : FP32.Bits) : IO Unit :=
   unless actual == expected do
@@ -57,7 +58,7 @@ def main : IO Unit := do
         else if symbol = "x_ptr" then some (arg .input)
         else if symbol = "b_ptr" then some (arg .bias)
         else if symbol = "y_ptr" then some (arg .output) else none
-      space := ⟨⟨1000, 2 ^ 24, by decide⟩, []⟩ }
+      toGlobal := fun a => some (BitVec.ofNat 64 (a.toNat - 1000)) }
   let initial : State Register :=
     { regs := fun _ => 99, regs64 := fun _ => 999, pc := 0, predicates := fun _ => true
       globalMemory := fun a =>
@@ -66,9 +67,7 @@ def main : IO Unit := do
         else if a.toNat < yBase then some 0x3e800000 -- b = 1/4
         else some 0x42c60000 }
   for row in [0, layerLaunch.rows - 1] do
-    match run (kernelProgram layerLaunch layerLayout)
-        ⟨BitVec.ofNat 32 (row % layerLaunch.threads), BitVec.ofNat 32 (row / layerLaunch.threads)⟩
-        (kernelSteps layerLaunch layerLayout) initial env (some op) with
+    match run (kernelProgram layerLaunch layerLayout) ⟨⟨BitVec.ofNat 32 (row % layerLaunch.threads), BitVec.ofNat 32 (row / layerLaunch.threads)⟩, env, op⟩ (kernelSteps layerLaunch layerLayout) initial with
     | none => throw (IO.userError "Concrete binary32 kernel execution failed.")
     | some final =>
       let output := BitVec.ofNat 64 (yBase + row * fp32Bytes)

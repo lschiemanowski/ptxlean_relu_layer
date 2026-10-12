@@ -1,6 +1,11 @@
+import ReluLayer.PTX.Layer
 import ReluLayer.PTX.DotLoop
 
 open ReluLayer.PTX
+
+-- Arbitrary word arithmetic for integer-only instruction fixtures.
+private def testArithmetic : FP32.Arithmetic :=
+  ⟨fun w x a => w * x + a, fun a b => a + b⟩
 
 private def layout : Layout := ⟨2, by decide, by decide⟩
 private def buffers : Buffers
@@ -31,40 +36,34 @@ private theorem entry : BodyEntry layout 2 buffers data 1 initial := by
   all_goals decide
 
 -- Arbitrary scratch is overwritten; the first branch is taken, the last is not.
-example : ((run (dotLoop 2) ⟨0, 0⟩ 10 initial Environment.empty (some ops)).map
+example : ((run (dotLoop 2) ⟨⟨0, 0⟩, Environment.empty, ops⟩ 10 initial).map
     (fun s => (s.pc, (s.regs .column).toNat, (s.regs .accumulator).toNat,
       (s.regs64 .weightRead).toNat, (s.regs64 .inputRead).toNat, s.predicates .more))) =
     some (2, 1, 8, 12, 20, true) := by decide
-example : ((run (dotLoop 2) ⟨0, 0⟩ 18 initial Environment.empty (some ops)).map
+example : ((run (dotLoop 2) ⟨⟨0, 0⟩, Environment.empty, ops⟩ 18 initial).map
     (fun s => (s.pc, (s.regs .column).toNat, (s.regs .accumulator).toNat,
       (s.regs64 .weightRead).toNat, (s.regs64 .inputRead).toNat, s.predicates .more))) =
     some (10, 2, 90, 16, 24, false) := by decide
-example : ((run (dotLoop 1) ⟨0, 0⟩ 10 initial Environment.empty (some ops)).map
+example : ((run (dotLoop 1) ⟨⟨0, 0⟩, Environment.empty, ops⟩ 10 initial).map
     (fun s => (s.pc, (s.regs .accumulator).toNat, s.predicates .more))) =
     some (10, 8, false) := by decide
-example : ((run (dotLoop 2) ⟨0, 0⟩ 18 initial Environment.empty (some ops)).map
+example : ((run (dotLoop 2) ⟨⟨0, 0⟩, Environment.empty, ops⟩ 18 initial).map
     (fun s => ((s.regs .row).toNat, (s.regs64 .biasRead).toNat,
       (s.regs64 .outputWrite).toNat, s.globalMemory 8, s.predicates .row))) =
     some (1, 28, 36, some 3, true) := by decide
 
 -- Unsigned comparison, finite-width addition, unavailable loads/operations, and FMA aliasing.
-example : ((Instruction.setpLt Register.more (.imm 0x80000000) (.imm 1)).execute
-    ⟨0, 0⟩ initial).map (fun s => s.predicates .more) = some false := by decide
-example : ((Instruction.add32 Register.column (.imm 0xffffffff) (.imm 1)).execute
-    ⟨0, 0⟩ initial).map (fun s => s.regs .column) = some 0 := by decide
-example : (Instruction.loadF32 Register.weightValue (.imm 100)).execute ⟨0, 0⟩ initial = none := by decide
-example : (Instruction.fmaRN Register.accumulator (.imm 1) (.imm 2) (.imm 3)).execute
-    ⟨0, 0⟩ initial = none := by decide
-example : ((Instruction.fmaRN Register.accumulator (.imm 1) (.imm 2) (.reg .accumulator)).execute
-    ⟨0, 0⟩ initial Environment.empty (some ops)).map (fun s => s.regs .accumulator) = some 993 := by decide
-example : ((Instruction.branchIf Register.more 7).execute ⟨0, 0⟩ initial).map (fun s => s.pc) = some 7 := by decide
-example : ((Instruction.branchIf Register.more 7).execute ⟨0, 0⟩
-    { initial with pc := 4, predicates := fun _ => false }).map (fun s => s.pc) = some 5 := by decide
+example : ((Instruction.setpLt Register.more (.imm 0x80000000) (.imm 1)).execute ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ initial).map (fun s => s.predicates .more) = some false := by decide
+example : ((Instruction.add32 Register.column (.imm 0xffffffff) (.imm 1)).execute ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ initial).map (fun s => s.regs .column) = some 0 := by decide
+example : (Instruction.loadF32 Register.weightValue (.imm 100)).execute ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ initial = none := by decide
+example : ((Instruction.fmaRN Register.accumulator (.imm 1) (.imm 2) (.reg .accumulator)).execute ⟨⟨0, 0⟩, Environment.empty, ops⟩ initial).map (fun s => s.regs .accumulator) = some 993 := by decide
+example : ((Instruction.branchIf Register.more 7).execute ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ initial).map (fun s => s.pc) = some 7 := by decide
+example : ((Instruction.branchIf Register.more 7).execute ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ { initial with pc := 4, predicates := fun _ => false }).map (fun s => s.pc) = some 5 := by decide
 
 -- The full-width invariant includes exit PC, counter, accumulator and memory facts.
-example : ∃ final, run (dotLoop 2) ⟨0, 0⟩ 18 initial Environment.empty (some ops) = some final ∧
+example : ∃ final, run (dotLoop 2) ⟨⟨0, 0⟩, Environment.empty, ops⟩ 18 initial = some final ∧
     LoopInvariant ops data buffers 1 initial 2 final :=
-  dotLoop_correct ops data buffers 1 initial ⟨0, 0⟩ Environment.empty entry
+  dotLoop_correct ⟨⟨0, 0⟩, Environment.empty, ops⟩ data buffers 1 initial entry
 
 #print axioms run_add
 #print axioms prefixAccumulator_succ
@@ -92,8 +91,8 @@ def main (args : List String) : IO Unit := do
     regs64 := fun r => if r = .weightRead then 0 else if r = .inputRead then 8192 else 999
     globalMemory := fun a => if a.toNat < 4096 then some 2
       else if 8192 ≤ a.toNat && a.toNat < 12288 then some 3 else none }
-  let result := run (dotLoop layerLayout.inputWidth) ⟨0, 0⟩
-    (dotLoopStart + dotIterationSteps * layerLayout.inputWidth) fullInitial Environment.empty (some sumOps)
+  let result := run (dotLoop layerLayout.inputWidth) ⟨⟨0, 0⟩, Environment.empty, sumOps⟩
+    (dotLoopStart + dotIterationSteps * layerLayout.inputWidth) fullInitial
   match result with
   | none => throw (IO.userError "Full-width loop execution failed.")
   | some final =>

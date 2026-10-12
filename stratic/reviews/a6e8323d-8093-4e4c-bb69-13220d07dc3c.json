@@ -1,0 +1,404 @@
+{
+  "id": "a6e8323d-8093-4e4c-bb69-13220d07dc3c",
+  "base": "87bd29a2eed437c7b700d5e6db2af39b0a1eb918",
+  "contentTree": "a8730a27d2193faf98c4fcca2269759855e20590",
+  "reviewer": "Codex",
+  "summary": "Simplify the execution and address-conversion model, public Returns interface, ordered numerical definitions and selected-layer configuration while preserving the stored-output Sequential guarantee",
+  "examined": [
+    {
+      "id": "root",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "address-bounds",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "body-contract",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "dot-loop",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "sequential-bridge",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "launch-separation",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "kernel-execution",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "row-selection",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "execution-context",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "ptx-kernel",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "relu-suffix",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "rounding-error",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "sequential-specification",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "real-relu",
+      "outcome": "revised",
+      "reason": "Reviewed the preserved exact finite decoding/ReLU and error-transfer statements under the required-context dependency graph. The responsibility's complete implementation/check links were refreshed; its finite-value behavioral claim remains the same."
+    },
+    {
+      "id": "fp32-arithmetic",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "real-forward",
+      "outcome": "unchanged",
+      "reason": "The actual real-valued Sequential evaluation and finite ReLU bridge remain unchanged in meaning; the build checks their proofs under the same pinned dependencies."
+    },
+    {
+      "id": "address-calculation",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    },
+    {
+      "id": "base-loading",
+      "outcome": "revised",
+      "reason": "Reviewed the required execution context and Returns relation, explicit supplied-buffer conversion assumptions, saturating FMA recurrence and generic preactivation, finite-sum trace budget, direct reference-operation equations, isolated optional separation and concrete layer configuration. Existing numerical and per-thread scope is retained; pointer conversion is now supplied as an explicit partial function, and missing arithmetic is excluded by type. Exact source links and README reflect the revised model, while GPU/device/all-thread correspondence remains unproved."
+    }
+  ],
+  "unresolved": [],
+  "results": [
+    {
+      "tree": "a8730a27d2193faf98c4fcca2269759855e20590",
+      "method": "LEAN_NUM_THREADS=4 lake build ReluLayer ReluLayer.PTX.Optional.AddressBounds ReluLayer.PTX.Optional.Separation; then LEAN_NUM_THREADS=1 lake env lean --run checks/{RowSelection,AddressCalculation,BaseLoading,BodyContract,DotLoop,ReluSuffix,BodyExecution,KernelExecution,FloatArithmetic,RealDecode,RoundingError,SequentialBridge}.lean; Stratic validate; inspect source, theorem axioms, exact README signature and unchanged PTX hash",
+      "outcome": "pass",
+      "environment": "Linux x86_64; Lean 4.35.0-rc4; unchanged dependency pins and four scripted compatibility edits; per-thread abstract word-memory execution with required context and supplied partial pointer conversion",
+      "evidence": "The main library and both optional modules build (3114 jobs). All twelve checkers exit 0 without new unused-simp warnings. Direct FloatLib reference equations, concrete full-width FP32 and artificial order-sensitive execution, all source/instruction comparisons, output/bias aliasing, supplied conversion success/exclusion and missing parameters pass. New checks cover prefix saturation beyond width and exclusion of Returns from active zero-fuel states. The stored-output Sequential theorem uses only propext, Classical.choice and Quot.sound; source has no sorry/admit/custom axioms. The reference arithmetic record and redundant concrete kernel wrappers are removed, while reference-operation equations remain. The PTX source hash remains 9f0fe32284dd65ad4462be4dfb9175ed43a22ac57fb14fb20823eb7a54469f9f. README quotes the exact public theorem. Stratic validates source/description links and impact/unmapped explanations are accounted for. Content trees are identical before and after checks. Context arithmetic is mandatory and pointer conversion is an explicit entry assumption; hardware/device/all-thread guarantees remain outside scope. Pre-existing package/import warnings remain.",
+      "tests": [
+        {
+          "id": "lake-build-main-and-optional-modules",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/RowSelection.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/AddressCalculation.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/BaseLoading.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/BodyContract.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/DotLoop.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/ReluSuffix.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/BodyExecution.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/KernelExecution.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/FloatArithmetic.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/RealDecode.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/RoundingError.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "checks/SequentialBridge.lean",
+          "outcome": "pass"
+        },
+        {
+          "id": "stratic-validate",
+          "outcome": "pass"
+        }
+      ],
+      "id": "d2150037-b6e8-4a6b-bfc0-8bee3b3465eb",
+      "recordedAt": "2026-10-12T07:23:05.651Z"
+    }
+  ],
+  "recordedAt": "2026-10-12T07:24:13.970Z",
+  "unmapped": [
+    {
+      "path": "README.md",
+      "reason": "Reviewed the exact public theorem quotation, explicit entry conversions and finite-trace assumptions, return semantics, proof-reading path and reproducible main/optional checks."
+    },
+    {
+      "path": "ReluLayer/PTX/AddressCalculation.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/BaseLoading.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/BodyContract.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/BodyExecution.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/DotLoop.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/Environment.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/FloatArithmetic.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/KernelExecution.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/Layer.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/Machine.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/Optional/AddressBounds.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/Optional/Separation.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/ProgramComposition.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/ReluSuffix.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/RoundingError.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/RowSelection.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/PTX/TensorMemory.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/SequentialBridge.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "ReluLayer/Specification.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/AddressCalculation.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/BaseLoading.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/BodyContract.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/BodyExecution.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/DotLoop.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/FloatArithmetic.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/KernelExecution.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/ReluSuffix.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/RoundingError.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/RowSelection.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "checks/SequentialBridge.lean",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/address-bounds.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/address-calculation.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/address-calculation.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/base-loading.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/base-loading.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/body-contract.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/body-contract.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/dot-loop.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/execution-context.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/execution-context.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/fp32-arithmetic.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/fp32-arithmetic.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/kernel-execution.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/kernel-execution.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/launch-separation.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/launch-separation.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/ptx-kernel.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/real-relu.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/relu-suffix.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/root.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/rounding-error.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/rounding-error.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/sequential-bridge.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/sequential-bridge.md",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    },
+    {
+      "path": "stratic/descriptions/sequential-specification.json",
+      "reason": "Reviewed complete meaningful declarations, proof steps and executable oracles selected by exact implementation passages; remaining imports, namespace/open/variable lines, formatting and closing text are included. The setup/loop/suffix instruction lists and PTX source are unchanged; new context and conversion assumptions are explicit."
+    }
+  ]
+}

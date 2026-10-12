@@ -1,4 +1,5 @@
 import ReluLayer.PTX.FP32
+import Mathlib.Data.Nat.Basic
 
 namespace ReluLayer.PTX
 
@@ -14,6 +15,14 @@ def wideProduct (a b : Word32) : Word64 :=
 structure Identity where
   tidX : Word32
   ctaidX : Word32
+
+/-- Required read-only inputs to one thread's execution. -/
+structure ExecutionContext where
+  id : Identity
+  env : Environment
+  ops : FP32.Arithmetic
+
+variable {Reg : Type}
 
 /-- One thread's private registers/PC, together with the shared global-memory snapshot. -/
 structure State (Reg : Type) where
@@ -63,70 +72,77 @@ inductive Instruction (Reg : Type) where
   | storeF32 (address : Operand64 Reg) (src : Operand Reg)
   | ret
 
-def State.write [DecidableEq Reg] (s : State Reg) (dst : Reg) (v : Word32) : State Reg :=
+/-- Write one 32-bit register and advance the PC by one. -/
+def State.writeNext [DecidableEq Reg] (s : State Reg) (dst : Reg) (v : Word32) : State Reg :=
   { s with regs := fun r => if r = dst then v else s.regs r, pc := s.pc + 1 }
 
-def State.write64 [DecidableEq Reg] (s : State Reg) (dst : Reg) (v : Word64) : State Reg :=
+/-- Write one 64-bit register and advance the PC by one. -/
+def State.write64Next [DecidableEq Reg] (s : State Reg) (dst : Reg) (v : Word64) : State Reg :=
   { s with regs64 := fun r => if r = dst then v else s.regs64 r, pc := s.pc + 1 }
 
-/-- All operands are read before the destination is updated. BitVec arithmetic wraps. -/
-def Instruction.execute [DecidableEq Reg] (id : Identity) (s : State Reg)
-    (inst : Instruction Reg) (env : Environment := Environment.empty)
-    (ops : Option FP32.Arithmetic := none) : Option (State Reg) :=
+/-- Read all operands before updating the destination. Arithmetic and PC updates are explicit. -/
+def Instruction.execute [DecidableEq Reg] (ctx : ExecutionContext) (s : State Reg)
+    (inst : Instruction Reg) : Option (State Reg) :=
   match inst with
-  | .mov dst src => some (s.write dst (src.read id s))
-  | .madLo dst a b c => some (s.write dst (a.read id s * b.read id s + c.read id s))
-  | .mulWide dst a b => some (s.write64 dst (wideProduct (a.read id s) (b.read id s)))
-  | .add64 dst a b => some (s.write64 dst (a.read s + b.read s))
-  | .ldParam64 dst symbol => (env.params symbol).map (s.write64 dst)
-  | .cvtaGlobal64 dst src => (env.space.toGlobal (src.read s)).map (s.write64 dst)
-  | .movF32 dst value => some (s.write dst value)
-  | .loadF32 dst address => (s.globalMemory (address.read s)).map (s.write dst)
-  | .fmaRN dst a b c => ops.map (fun op =>
-      s.write dst (op.fmaRN (a.read id s) (b.read id s) (c.read id s)))
-  | .add32 dst a b => some (s.write dst (a.read id s + b.read id s))
+  | .mov dst src => some (s.writeNext dst (src.read ctx.id s))
+  | .madLo dst a b c => some (s.writeNext dst (a.read ctx.id s * b.read ctx.id s + c.read ctx.id s))
+  | .mulWide dst a b => some (s.write64Next dst (wideProduct (a.read ctx.id s) (b.read ctx.id s)))
+  | .add64 dst a b => some (s.write64Next dst (a.read s + b.read s))
+  | .ldParam64 dst symbol => (ctx.env.params symbol).map (s.write64Next dst)
+  | .cvtaGlobal64 dst src => (ctx.env.toGlobal (src.read s)).map (s.write64Next dst)
+  | .movF32 dst value => some (s.writeNext dst value)
+  | .loadF32 dst address => (s.globalMemory (address.read s)).map (s.writeNext dst)
+  | .fmaRN dst a b c => some (s.writeNext dst
+      (ctx.ops.fmaRN (a.read ctx.id s) (b.read ctx.id s) (c.read ctx.id s)))
+  | .add32 dst a b => some (s.writeNext dst (a.read ctx.id s + b.read ctx.id s))
   | .setpLt dst a b => some { s with
-      predicates := fun r => if r = dst then decide ((a.read id s).toNat < (b.read id s).toNat)
+      predicates := fun r => if r = dst then decide ((a.read ctx.id s).toNat < (b.read ctx.id
+          s).toNat)
         else s.predicates r
       pc := s.pc + 1 }
   | .branchIf predicate target => some { s with
       pc := if s.predicates predicate then target else s.pc + 1 }
-  | .addF32RN dst a b => ops.map (fun op =>
-      s.write dst (op.addRN (a.read id s) (b.read id s)))
-  | .maxPositiveZero dst src => some (s.write dst (FP32.maxPositiveZero (src.read id s)))
+  | .addF32RN dst a b => some (s.writeNext dst (ctx.ops.addRN (a.read ctx.id s) (b.read ctx.id s)))
+  | .maxPositiveZero dst src => some (s.writeNext dst (FP32.maxPositiveZero (src.read ctx.id s)))
   | .storeF32 address src => some { s with
-      globalMemory := fun a => if a = address.read s then some (src.read id s) else s.globalMemory a
+      globalMemory := fun a => if a = address.read s then some (src.read ctx.id s) else
+          s.globalMemory a
       pc := s.pc + 1 }
   | .ret => some { s with returned := true, pc := s.pc + 1 }
 
-/-- Active threads fetch at the current PC; returned threads have no next step. -/
-def step [DecidableEq Reg] (program : List (Instruction Reg)) (id : Identity)
-    (s : State Reg) (env : Environment := Environment.empty)
-    (ops : Option FP32.Arithmetic := none) : Option (State Reg) :=
-  if s.returned then none else
-    (program[s.pc]?).bind (fun inst => inst.execute id s env ops)
+/-- Returned threads have no next step; active threads fetch their current PC. -/
+def step [DecidableEq Reg] (program : List (Instruction Reg)) (ctx : ExecutionContext)
+    (s : State Reg) : Option (State Reg) :=
+  if s.returned then none else (program[s.pc]?).bind (fun inst => inst.execute ctx s)
 
-/-- Execute exactly `fuel` instructions; failed fetches and excluded instruction uses yield `none`. -/
-def run [DecidableEq Reg] (program : List (Instruction Reg)) (id : Identity)
-    (fuel : Nat) (s : State Reg) (env : Environment := Environment.empty)
-    (ops : Option FP32.Arithmetic := none) : Option (State Reg) :=
+/-- Execute exactly fuel instructions, failing on an unavailable fetch/load/conversion. -/
+def run [DecidableEq Reg] (program : List (Instruction Reg)) (ctx : ExecutionContext)
+    (fuel : Nat) (s : State Reg) : Option (State Reg) :=
   match fuel with
   | 0 => some s
-  | fuel + 1 => (step program id s env ops).bind (fun next => run program id fuel next env ops)
+  | fuel + 1 => (step program ctx s).bind (fun next => run program ctx fuel next)
 
-theorem run_add [DecidableEq Reg] (program : List (Instruction Reg)) (id : Identity)
-    (a b : Nat) (s : State Reg) (env : Environment) (ops : Option FP32.Arithmetic) :
-    run program id (a + b) s env ops =
-      (run program id a s env ops).bind (fun next => run program id b next env ops) := by
+/-- A successful finite execution that reaches a returned state. -/
+def Returns [DecidableEq Reg] (program : List (Instruction Reg)) (ctx : ExecutionContext)
+    (initial final : State Reg) : Prop :=
+  (∃ fuel, run program ctx fuel initial = some final) ∧ final.returned = true
+
+theorem step_after_return (program : List (Instruction Reg)) [DecidableEq Reg]
+    (ctx : ExecutionContext) (s : State Reg) (hreturned : s.returned = true) :
+    step program ctx s = none := by simp [step, hreturned]
+
+theorem run_add [DecidableEq Reg] (program : List (Instruction Reg)) (ctx : ExecutionContext)
+    (a b : Nat) (s : State Reg) :
+    run program ctx (a + b) s =
+      (run program ctx a s).bind (fun next => run program ctx b next) := by
   induction a generalizing s with
   | zero => simp [run]
   | succ a ih => simp [Nat.succ_add, run, ih, Option.bind_assoc]
 
 private theorem step_append_of_step [DecidableEq Reg]
-    (program suffix : List (Instruction Reg)) (id : Identity) (s next : State Reg)
-    (env : Environment) (ops : Option FP32.Arithmetic)
-    (h : step program id s env ops = some next) :
-    step (program ++ suffix) id s env ops = some next := by
+    (program suffix : List (Instruction Reg)) (ctx : ExecutionContext) (s next : State Reg)
+    (h : step program ctx s = some next) :
+    step (program ++ suffix) ctx s = some next := by
   have hpc : s.pc < program.length := by
     by_contra hn
     have hf := List.getElem?_eq_none (l := program) (by omega : program.length ≤ s.pc)
@@ -135,15 +151,15 @@ private theorem step_append_of_step [DecidableEq Reg]
 
 /-- Appending instructions cannot change an already successful prefix execution. -/
 theorem run_append_of_run [DecidableEq Reg]
-    (program suffix : List (Instruction Reg)) (id : Identity) (fuel : Nat)
-    (s final : State Reg) (env : Environment) (ops : Option FP32.Arithmetic)
-    (h : run program id fuel s env ops = some final) :
-    run (program ++ suffix) id fuel s env ops = some final := by
+    (program suffix : List (Instruction Reg)) (ctx : ExecutionContext) (fuel : Nat)
+    (s final : State Reg)
+    (h : run program ctx fuel s = some final) :
+    run (program ++ suffix) ctx fuel s = some final := by
   induction fuel generalizing s with
   | zero => simpa [run] using h
   | succ fuel ih =>
     obtain ⟨next, hs, ht⟩ := Option.bind_eq_some_iff.mp h
-    have he := step_append_of_step program suffix id s next env ops hs
+    have he := step_append_of_step program suffix ctx s next hs
     simpa only [run, he, Option.bind_some] using ih next ht
 
 end ReluLayer.PTX

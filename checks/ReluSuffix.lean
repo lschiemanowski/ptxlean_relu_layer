@@ -2,6 +2,10 @@ import ReluLayer.PTX.ReluSuffix
 
 open ReluLayer.PTX
 
+-- Arbitrary word arithmetic for integer-only instruction fixtures.
+private def testArithmetic : FP32.Arithmetic :=
+  ⟨fun w x a => w * x + a, fun a b => a + b⟩
+
 private def layout : Layout := ⟨2, by decide, by decide⟩
 private def buffers : Buffers
   | .weights => 0 | .input => 16 | .bias => 24 | .output => 32
@@ -20,7 +24,7 @@ private def initial : State Register :=
     predicates := fun _ => true }
 private theorem entry : SuffixEntry ops data buffers 1 initial := by constructor <;> decide
 
-private def executed : Option (State Register) := run reluSuffix ⟨0, 0⟩ 5 initial Environment.empty (some ops)
+private def executed : Option (State Register) := run reluSuffix ⟨⟨0, 0⟩, Environment.empty, ops⟩ 5 initial
 example : executed.map (fun s => (s.pc, s.returned)) = some (5, true) := by decide
 example : executed.map (fun s => ((s.regs .biasValue).toNat, (s.regs .accumulator).toNat,
     (s.regs .result).toNat)) = some (8, 98, 98) := by decide
@@ -32,14 +36,14 @@ example : executed.map (fun s => ((s.regs64 .biasRead).toNat, (s.regs64 .outputW
 example : executed.bind (fun s => s.globalMemory 28) = some 8 := by decide
 example : executed.bind (fun s => s.globalMemory 32) = some 0x3f800000 := by decide
 example : executed.map (fun s => s.predicates .more) = some true := by decide
-example : ∃ final, run reluSuffix ⟨0, 0⟩ 5 initial Environment.empty (some ops) = some final ∧
+example : ∃ final, run reluSuffix ⟨⟨0, 0⟩, Environment.empty, ops⟩ 5 initial = some final ∧
     SuffixResult ops data buffers 1 initial final :=
-  reluSuffix_correct ops data buffers 1 initial ⟨0, 0⟩ Environment.empty entry
+  reluSuffix_correct ⟨⟨0, 0⟩, Environment.empty, ops⟩ data buffers 1 initial entry
 
 -- Feed chosen preactivation patterns through the actual max/store/return sequence.
 private def preactivationOps (v : Word32) : FP32.Arithmetic := ⟨fun _ _ a => a, fun _ _ => v⟩
 private def stored (v : Word32) : Option Word32 :=
-  (run reluSuffix ⟨0, 0⟩ 5 initial Environment.empty (some (preactivationOps v))).bind
+  (run reluSuffix ⟨⟨0, 0⟩, Environment.empty, (preactivationOps v)⟩ 5 initial).bind
     (fun s => s.globalMemory 36)
 example : stored 0xbf800000 = some 0 := by decide
 example : stored 0x80000000 = some 0 := by decide
@@ -48,20 +52,16 @@ example : stored 0x7f800001 = some 0 := by decide
 example : stored 0x7f800000 = some 0x7f800000 := by decide
 example : stored 1 = some 1 := by decide
 
--- Addition reads the old destination; missing bias/arithmetic excludes execution.
-example : ((Instruction.addF32RN Register.accumulator (.reg .accumulator) (.imm 8)).execute
-    ⟨0, 0⟩ initial Environment.empty (some ops)).map (fun s => s.regs .accumulator) = some 98 := by decide
-example : run reluSuffix ⟨0, 0⟩ 5 { initial with globalMemory := fun _ => none }
-    Environment.empty (some ops) = none := by decide
-example : run reluSuffix ⟨0, 0⟩ 5 initial = none := by decide
-example : run reluSuffix ⟨0, 0⟩ 5 { initial with returned := true }
-    Environment.empty (some ops) = none := by decide
+-- Addition reads the old destination; a missing bias excludes execution.
+example : ((Instruction.addF32RN Register.accumulator (.reg .accumulator) (.imm 8)).execute ⟨⟨0, 0⟩, Environment.empty, ops⟩ initial).map (fun s => s.regs .accumulator) = some 98 := by decide
+example : run reluSuffix ⟨⟨0, 0⟩, Environment.empty, ops⟩ 5 { initial with globalMemory := fun _ => none } = none := by decide
+example : run reluSuffix ⟨⟨0, 0⟩, Environment.empty, ops⟩ 5 { initial with returned := true } = none := by decide
 
 -- ret stops execution even if a valid store instruction follows it.
 private def afterRet : List (Instruction Register) := [.ret, .storeF32 (.imm 36) (.imm 123)]
-example : ((run afterRet ⟨0, 0⟩ 1 initial).map (fun s => (s.returned, s.globalMemory 36))) =
+example : ((run afterRet ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ 1 initial).map (fun s => (s.returned, s.globalMemory 36))) =
     some (true, none) := by decide
-example : run afterRet ⟨0, 0⟩ 2 initial = none := by decide
+example : run afterRet ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ 2 initial = none := by decide
 
 #print axioms reluSuffix_correct
 #print axioms step_after_return

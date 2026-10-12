@@ -26,8 +26,11 @@ Here `forward` evaluates the actual sequential model over real numbers, and
 `E_i` is the already-established accumulated FMA and bias rounding budget.
 This connection introduces no new numerical estimate or input-conversion error.
 The public conclusion quantifies over the stored word directly. It states
-return, storage at the selected output address, preservation of every other
-memory address, finiteness, and the Sequential-coordinate discrepancy. Internal
+`Returns`, storage at the thread's named output address, preservation of every
+other memory address, finiteness, and the Sequential-coordinate discrepancy.
+The concrete execution context selects FloatLib arithmetic. Global buffer
+addresses are supplied directly, with successful generic-to-global conversion
+recorded in the entry contract. Internal
 PC and register facts remain in the block-composition contracts.
 
 It requires the same finite inputs and finite rounded intermediates for the

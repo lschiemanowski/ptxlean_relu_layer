@@ -3,6 +3,8 @@ import ReluLayer.PTX.ReluSuffix
 
 namespace ReluLayer.PTX
 
+variable {layout : Layout} {rows : Nat}
+
 /-- Block four: initialized dot loop followed by bias/ReLU/store/return. -/
 def bodyProgram (width : Nat) : List (Instruction Register) := dotLoop width ++ reluSuffix
 
@@ -22,25 +24,25 @@ structure BodyResult (ops : FP32.Arithmetic) (data : TensorData layout rows)
   otherPredicates : ∀ r, r ≠ .more → final.predicates r = initial.predicates r
 
 /-- Actual concatenated-program execution, reusing the loop and suffix theorems. -/
-theorem body_correct (ops : FP32.Arithmetic) (data : TensorData layout rows)
-    (buffers : Buffers) (i : Fin rows) (initial : State Register) (id : Identity)
-    (env : Environment) (hentry : BodyEntry layout rows buffers data i initial) :
-    ∃ final, run (bodyProgram layout.inputWidth) id (bodySteps layout.inputWidth)
-        initial env (some ops) = some final ∧ BodyResult ops data buffers i initial final := by
+theorem body_correct (ctx : ExecutionContext) (data : TensorData layout rows)
+    (buffers : Buffers) (i : Fin rows) (initial : State Register)
+    (hentry : BodyEntry layout rows buffers data i initial) :
+    ∃ final, run (bodyProgram layout.inputWidth) ctx (bodySteps layout.inputWidth) initial = some
+        final ∧ BodyResult ctx.ops data buffers i initial final := by
   obtain ⟨middle, hloop, hinv⟩ :=
-    dotLoop_correct ops data buffers i initial id env hentry
+    dotLoop_correct ctx data buffers i initial hentry
   have hb : middle.regs64 .biasRead = elementAddress buffers .bias i.val :=
     (hinv.other64 .biasRead (by decide) (by decide)).trans hentry.biasRead
   have hy : middle.regs64 .outputWrite = elementAddress buffers .output i.val :=
     (hinv.other64 .outputWrite (by decide) (by decide)).trans hentry.outputWrite
-  have hsuffix : SuffixEntry ops data buffers i middle (dotLoop layout.inputWidth).length := by
+  have hsuffix : SuffixEntry ctx.ops data buffers i middle (dotLoop layout.inputWidth).length := by
     refine ⟨?_, hinv.active, hinv.accumulator, hb, ?_, hy⟩
     · simpa [dotLoopExit, dotLoop] using hinv.pc
     · rw [hinv.memory]; exact hentry.inputs.bias i
   obtain ⟨final, hs, hr⟩ := reluSuffix_correct_at (dotLoop layout.inputWidth)
-    ops data buffers i middle id env hsuffix
-  have hl := run_append_of_run (dotLoop layout.inputWidth) reluSuffix id
-    (dotLoopStart + dotIterationSteps * layout.inputWidth) initial middle env (some ops) hloop
+    ctx data buffers i middle hsuffix
+  have hl := run_append_of_run (dotLoop layout.inputWidth) reluSuffix ctx (dotLoopStart +
+      dotIterationSteps * layout.inputWidth) initial middle hloop
   refine ⟨final, ?_, ?_⟩
   · unfold bodyProgram bodySteps
     rw [run_add, hl]

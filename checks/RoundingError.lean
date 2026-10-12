@@ -18,13 +18,6 @@ example : |FP32.toReal (rowResult FP32.floatLibArithmetic tieData 0) -
     exactRowResult tieData 0| ≤ traceErrorBudget tieData 0 :=
   (rowResult_abs_error_le tieData 0 tieFinite).2
 
--- The theorem stays generic in width, row count, and finite data.
-example (data : TensorData layout rows) (i : Fin rows) (hf : FiniteRowTrace data i)
-    (k : Nat) (hk : k ≤ layout.inputWidth) :
-    |FP32.toReal (prefixAccumulator FP32.floatLibArithmetic data i k) -
-        exactPrefix data i k| ≤ prefixErrorBudget data i k :=
-  prefixAccumulator_abs_error_le data i hf k hk
-
 -- All inputs are finite here, but the first accumulator overflows.
 private def overflowData : TensorData smallLayout 1 :=
   { weights := fun _ _ => 0x7f7fffff
@@ -42,7 +35,6 @@ example : ¬ FiniteRowTrace overflowData 0 := by
   rw [hn] at h
   contradiction
 
-#print axioms prefixAccumulator_abs_error_le
 #print axioms preactivation_abs_error_le
 #print axioms rowResult_abs_error_le
 #print axioms kernel_abs_error_le

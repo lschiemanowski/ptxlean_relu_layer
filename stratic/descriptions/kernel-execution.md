@@ -1,8 +1,9 @@
 # Whole-kernel execution
 
 An active thread starts at the kernel entry with four initialized pointer
-parameters. Their generic addresses are admitted by the configured address
-space. The converted global addresses identify the supplied tensor words. Output
+parameters. Their generic addresses convert successfully to the supplied
+global buffer addresses through the environment's partial conversion function.
+Those buffer addresses identify the supplied tensor words. Output
 separation is not required for one thread: its only store follows all reads.
 Scratch registers and predicates may initially contain arbitrary values.
 
@@ -13,8 +14,10 @@ and input width are parameters. The launch's row count fits in an unsigned
 32-bit register; the weight stride is derived from the input width.
 
 For each valid thread, execution terminates with its output word equal to the
-ordered `rowResult` and every other memory location unchanged. The row register
-contains the owned row and the column counter contains the input width. The
+ordered `rowResult` and every other memory location unchanged. Register and PC bookkeeping remains internal to the block proofs. A required
+execution context supplies the thread identity, environment and arithmetic.
+`Returns` means some finite successful run reaches a state whose returned flag
+is set; the public theorem does not expose instruction fuel. The
 instruction count is the setup length plus `2 + 8 * inputWidth + 5`.
 The selected 1024-input kernel has 31 static instructions and executes 8215
 instructions per thread.

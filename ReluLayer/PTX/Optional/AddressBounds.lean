@@ -1,4 +1,4 @@
-import ReluLayer.PTX.AddressCalculation
+import ReluLayer.PTX.Layer
 
 namespace ReluLayer.PTX
 
@@ -38,16 +38,16 @@ structure AddressResult (layout : Layout) (rows : Nat)
       (initial.regs64 .outputBase).toNat + rows * fp32Bytes
 
 /-- Buffer-end bounds imply exact addresses, without 64-bit wraparound. -/
-theorem addressCalculation_correct (layout : Layout) (rows : Nat) (id : Identity)
+theorem addressCalculation_correct (layout : Layout) (rows : Nat) (ctx : ExecutionContext)
     (initial : State Register) (hpc : initial.pc = 0)
     (hrow : (initial.regs .row).toNat < rows)
     (hW : (initial.regs64 .weightBase).toNat + rows * layout.rowStride < 2 ^ 64)
     (hb : (initial.regs64 .biasBase).toNat + rows * fp32Bytes < 2 ^ 64)
     (hy : (initial.regs64 .outputBase).toNat + rows * fp32Bytes < 2 ^ 64)
-    (env : Environment) (hactive : initial.returned = false) :
-    ∃ final, run (addressCalculation layout.inputWidth) id 5 initial env = some final ∧
+    (hactive : initial.returned = false) :
+    ∃ final, run (addressCalculation layout.inputWidth) ctx 5 initial = some final ∧
       AddressResult layout rows initial final := by
-  obtain ⟨final, hexec, hwords⟩ := addressCalculation_exec layout.inputWidth id initial hpc env hactive
+  obtain ⟨final, hexec, hwords⟩ := addressCalculation_exec layout.inputWidth ctx initial hpc hactive
   have hstride : fp32Bytes ≤ layout.rowStride := by
     have hwidth : 1 ≤ layout.inputWidth := layout.inputWidth_pos
     simpa [Layout.rowStride] using Nat.mul_le_mul_right fp32Bytes hwidth
@@ -75,14 +75,14 @@ theorem addressCalculation_correct (layout : Layout) (rows : Nat) (id : Identity
   · rw [hbeq]; exact ⟨Nat.le_add_right _ _, hEb⟩
   · rw [hyeq]; exact ⟨Nat.le_add_right _ _, hEy⟩
 
-theorem layer_addressCalculation_correct (id : Identity) (initial : State Register)
+theorem layer_addressCalculation_correct (ctx : ExecutionContext) (initial : State Register)
     (hpc : initial.pc = 0) (hrow : (initial.regs .row).toNat < layerLaunch.rows)
     (hW : (initial.regs64 .weightBase).toNat + layerLaunch.rows * layerLayout.rowStride < 2 ^ 64)
     (hb : (initial.regs64 .biasBase).toNat + layerLaunch.rows * fp32Bytes < 2 ^ 64)
     (hy : (initial.regs64 .outputBase).toNat + layerLaunch.rows * fp32Bytes < 2 ^ 64)
-    (env : Environment) (hactive : initial.returned = false) :
-    ∃ final, run (addressCalculation layerLayout.inputWidth) id 5 initial env = some final ∧
+    (hactive : initial.returned = false) :
+    ∃ final, run (addressCalculation layerLayout.inputWidth) ctx 5 initial = some final ∧
       AddressResult layerLayout layerLaunch.rows initial final :=
-  addressCalculation_correct layerLayout layerLaunch.rows id initial hpc hrow hW hb hy env hactive
+  addressCalculation_correct layerLayout layerLaunch.rows ctx initial hpc hrow hW hb hy hactive
 
 end ReluLayer.PTX

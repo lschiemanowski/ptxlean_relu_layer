@@ -11,13 +11,13 @@
     "Use 12 blocks of 256 threads and contiguous disjoint buffers, with 16 PTX instruction forms and private per-thread register state.",
     "Select an in-range output row through formally modeled register updates, with launch counts supplied as parameters.",
     "Form exact row, bias, and output pointers using a derived weight stride and explicit buffer-end bounds preventing 64-bit wraparound.",
-    "Load declared pointer parameters and convert them under an explicit global-window configuration, preserving untouched registers and global memory.",
+    "Load declared generic pointer parameters and convert them to supplied global buffers under explicit successful-conversion assumptions, preserving unrelated state.",
     "Require the supplied input-word values for the single-thread final block, store its ordered result in exactly one word and preserve every other word address.",
     "Execute the initialized dot-product loop with one supplied FMA update per column, correct pointer/counter progress and exit, while preserving memory and unrelated registers.",
     "Execute the bias/ReLU/store/return suffix, store the specified row result, preserve other word locations and unrelated registers, and stop the entry thread.",
     "Execute the complete computational block through its loop/suffix handoff, return with rowResult stored, and preserve all other word locations and unrelated registers.",
     "Execute the concatenated four-block kernel per thread through return, store its ordered row result and preserve every other memory word.",
-    "Specialize execution to concrete FloatLib binary32 addition and FMA with a reference-arithmetic result.",
+    "Use concrete FloatLib binary32 addition and FMA, with direct proofs of agreement with their reference operations.",
     "Decode finite preactivations and prove exact real ReLU with preservation of absolute-error bounds.",
     "Bound the finite ordered FMA and bias-addition error by accumulated local half-ULP terms; ReLU preserves this bound on the stored row result.",
     "Connect the finite stored kernel result directly to the real-valued upstream nn.Sequential forward coordinate on decoded inputs, using the existing rounding budget."
@@ -33,55 +33,19 @@
       "to": {
         "path": "kernels/relu_layer.ptx",
         "passage": {
-          "quote": "// Launch: grid=(12,1,1), block=(256,1,1); arguments: W, x, b, y.\n// W is row-major [3072,1024]; all buffers are contiguous disjoint FP32 arrays.\n.version 8.0\n.target sm_80\n.address_size 64\n\n.visible .entry relu_layer(\n    .param .u64 W_ptr,\n    .param .u64 x_ptr,\n    .param .u64 b_ptr,\n    .param .u64 y_ptr\n)\n.reqntid 256, 1, 1\n{\n    .reg .u32 %thread, %block, %row, %j;\n    .reg .u64 %W_base, %x_read, %b_base, %y_base;\n    .reg .u64 %row_offset, %element_offset, %W_read, %b_read, %y_write;\n    .reg .f32 %w, %x, %acc, %bias, %result;\n    .reg .pred %more;"
-        }
-      }
-    },
-    {
-      "kind": "implementation",
-      "from": {
-        "quote": "The launch has grid dimensions `(12, 1, 1)` and block dimensions `(256, 1, 1)`.\nThread `tid.x` in block `ctaid.x` owns row `i = 256 * ctaid.x + tid.x`.\nThese 3072 threads cover the output coordinates exactly once. The `.reqntid`\ndirective fixes the block dimensions; the grid dimensions are a launch\nprecondition. The kernel has no extra-row guard."
-      },
-      "to": {
-        "path": "kernels/relu_layer.ptx",
-        "passage": {
-          "quote": "    // One thread owns row = block * 256 + tid.\n    mov.u32 %thread, %tid.x;\n    mov.u32 %block, %ctaid.x;\n    mad.lo.u32 %row, %block, 256, %thread;"
-        }
-      }
-    },
-    {
-      "kind": "implementation",
-      "from": {
-        "quote": "The buffers contain contiguous FP32 words with four-byte alignment. Weights use\nrow-major layout. All four buffers are disjoint, their address ranges do not\nwrap, and their sizes are:\n\n| Buffer | Shape | Bytes | Address of an element |\n|---|---|---:|---|\n| `W` | `[3072, 1024]` | 12582912 | `W_base + 4 * (1024 * i + j)` |\n| `x` | `[1024]` | 4096 | `x_base + 4 * j` |\n| `b` | `[3072]` | 12288 | `b_base + 4 * i` |\n| `y` | `[3072]` | 12288 | `y_base + 4 * i` |\n\nEach base plus its buffer size is less than `2^64`. The three input buffers are\ninitialized before launch and remain unchanged until the kernel completes.\nThe output is read after completion."
-      },
-      "to": {
-        "path": "kernels/relu_layer.ptx",
-        "passage": {
-          "quote": "    // Load generic pointers and convert them to global addresses.\n    ld.param.u64 %W_base, [W_ptr];\n    ld.param.u64 %x_read, [x_ptr];\n    ld.param.u64 %b_base, [b_ptr];\n    ld.param.u64 %y_base, [y_ptr];\n    cvta.to.global.u64 %W_base, %W_base;\n    cvta.to.global.u64 %x_read, %x_read;\n    cvta.to.global.u64 %b_base, %b_base;\n    cvta.to.global.u64 %y_base, %y_base;\n\n    // One thread owns row = block * 256 + tid.\n    mov.u32 %thread, %tid.x;\n    mov.u32 %block, %ctaid.x;\n    mad.lo.u32 %row, %block, 256, %thread;\n\n    // A weight row occupies 1024 * 4 bytes; bias/output elements occupy 4.\n    mul.wide.u32 %row_offset, %row, 4096;\n    mul.wide.u32 %element_offset, %row, 4;\n    add.u64 %W_read, %W_base, %row_offset;\n    add.u64 %b_read, %b_base, %element_offset;\n    add.u64 %y_write, %y_base, %element_offset;"
-        }
-      }
-    },
-    {
-      "kind": "implementation",
-      "from": {
-        "quote": "Each thread initializes its accumulator to positive zero and reads columns in\nthe order `j = 0, ..., 1023`. Each iteration loads `W[i,j]` and `x[j]` and updates\nthe accumulator with `fma.rn.f32`. After the loop, `add.rn.f32` adds `b[i]`,\n`max.f32` selects the maximum with positive zero, and `st.global.f32` writes\n`y[i]`."
-      },
-      "to": {
-        "path": "kernels/relu_layer.ptx",
-        "passage": {
-          "quote": "    mov.u32 %j, 0;\n    mov.f32 %acc, 0f00000000;\n\nDOT_LOOP:\n    // Read column j, then perform exactly one rounded fused multiply-add.\n    ld.global.f32 %w, [%W_read];\n    ld.global.f32 %x, [%x_read];\n    fma.rn.f32 %acc, %w, %x, %acc;\n    add.u64 %W_read, %W_read, 4;\n    add.u64 %x_read, %x_read, 4;\n    add.u32 %j, %j, 1;\n    setp.lt.u32 %more, %j, 1024;\n    @%more bra DOT_LOOP;\n\n    // Add bias, apply max with positive zero, and store the owned output.\n    ld.global.f32 %bias, [%b_read];\n    add.rn.f32 %acc, %acc, %bias;\n    max.f32 %result, %acc, 0f00000000;\n    st.global.f32 [%y_write], %result;\n    ret;"
-        }
-      }
-    },
-    {
-      "kind": "implementation",
-      "from": {
-        "quote": "The instruction subset contains the following exact forms. Counts refer to\nstatic instructions in the PTX source; the loop body executes 1024 times per\nthread."
-      },
-      "to": {
-        "path": "kernels/relu_layer.ptx",
-        "passage": {
           "quote": "// Launch: grid=(12,1,1), block=(256,1,1); arguments: W, x, b, y.\n// W is row-major [3072,1024]; all buffers are contiguous disjoint FP32 arrays.\n.version 8.0\n.target sm_80\n.address_size 64\n\n.visible .entry relu_layer(\n    .param .u64 W_ptr,\n    .param .u64 x_ptr,\n    .param .u64 b_ptr,\n    .param .u64 y_ptr\n)\n.reqntid 256, 1, 1\n{\n    .reg .u32 %thread, %block, %row, %j;\n    .reg .u64 %W_base, %x_read, %b_base, %y_base;\n    .reg .u64 %row_offset, %element_offset, %W_read, %b_read, %y_write;\n    .reg .f32 %w, %x, %acc, %bias, %result;\n    .reg .pred %more;\n\n    // Load generic pointers and convert them to global addresses.\n    ld.param.u64 %W_base, [W_ptr];\n    ld.param.u64 %x_read, [x_ptr];\n    ld.param.u64 %b_base, [b_ptr];\n    ld.param.u64 %y_base, [y_ptr];\n    cvta.to.global.u64 %W_base, %W_base;\n    cvta.to.global.u64 %x_read, %x_read;\n    cvta.to.global.u64 %b_base, %b_base;\n    cvta.to.global.u64 %y_base, %y_base;\n\n    // One thread owns row = block * 256 + tid.\n    mov.u32 %thread, %tid.x;\n    mov.u32 %block, %ctaid.x;\n    mad.lo.u32 %row, %block, 256, %thread;\n\n    // A weight row occupies 1024 * 4 bytes; bias/output elements occupy 4.\n    mul.wide.u32 %row_offset, %row, 4096;\n    mul.wide.u32 %element_offset, %row, 4;\n    add.u64 %W_read, %W_base, %row_offset;\n    add.u64 %b_read, %b_base, %element_offset;\n    add.u64 %y_write, %y_base, %element_offset;\n\n    mov.u32 %j, 0;\n    mov.f32 %acc, 0f00000000;\n\nDOT_LOOP:\n    // Read column j, then perform exactly one rounded fused multiply-add.\n    ld.global.f32 %w, [%W_read];\n    ld.global.f32 %x, [%x_read];\n    fma.rn.f32 %acc, %w, %x, %acc;\n    add.u64 %W_read, %W_read, 4;\n    add.u64 %x_read, %x_read, 4;\n    add.u32 %j, %j, 1;\n    setp.lt.u32 %more, %j, 1024;\n    @%more bra DOT_LOOP;\n\n    // Add bias, apply max with positive zero, and store the owned output.\n    ld.global.f32 %bias, [%b_read];\n    add.rn.f32 %acc, %acc, %bias;\n    max.f32 %result, %acc, 0f00000000;\n    st.global.f32 [%y_write], %result;\n    ret;\n}"
+        }
+      }
+    },
+    {
+      "kind": "implementation",
+      "from": {
+        "quote": "The kernel computes the 1024-input, 3072-output dense ReLU layer with one thread\nper output coordinate. It uses PTX 8.0, target `sm_80`, and 64-bit addressing.\nThe four kernel arguments are generic pointers to global buffers, in the order\n`W`, `x`, `b`, `y`."
+      },
+      "to": {
+        "path": "ReluLayer/PTX/Registers.lean",
+        "passage": {
+          "quote": "import ReluLayer.PTX.Machine\n\nnamespace ReluLayer.PTX\n\n/-- Register names shared by all selected kernel blocks. -/\ninductive Register where\n  | thread | block | row\n  | weightBase | inputRead | biasBase | outputBase\n  | rowOffset | elementOffset | weightRead | biasRead | outputWrite\n  | column | weightValue | inputValue | accumulator | more\n  | biasValue | result\n  deriving DecidableEq\n\ndef Register.ptxName : Register \u2192 String\n  | .thread => \"%thread\"\n  | .block => \"%block\"\n  | .row => \"%row\"\n  | .weightBase => \"%W_base\"\n  | .inputRead => \"%x_read\"\n  | .biasBase => \"%b_base\"\n  | .outputBase => \"%y_base\"\n  | .rowOffset => \"%row_offset\"\n  | .elementOffset => \"%element_offset\"\n  | .weightRead => \"%W_read\"\n  | .biasRead => \"%b_read\"\n  | .outputWrite => \"%y_write\"\n  | .column => \"%j\"\n  | .weightValue => \"%w\"\n  | .inputValue => \"%x\"\n  | .accumulator => \"%acc\"\n  | .more => \"%more\"\n  | .biasValue => \"%bias\"\n  | .result => \"%result\"\n\nprivate def operandText : Operand Register \u2192 String\n  | .reg r => r.ptxName\n  | .imm v => toString v.toNat\n  | .tidX => \"%tid.x\"\n  | .ctaidX => \"%ctaid.x\"\n\nprivate def operand64Text : Operand64 Register \u2192 String\n  | .reg r => r.ptxName\n  | .imm v => toString v.toNat\n\n/-- Render the selected instruction forms for executable source-fragment comparisons. -/\ndef Instruction.ptxText : Instruction Register \u2192 String\n  | .mov dst src => s!\"mov.u32 {dst.ptxName}, {operandText src};\"\n  | .madLo dst a b c =>\n      s!\"mad.lo.u32 {dst.ptxName}, {operandText a}, {operandText b}, {operandText c};\"\n  | .mulWide dst a b => s!\"mul.wide.u32 {dst.ptxName}, {operandText a}, {operandText b};\"\n  | .add64 dst a b => s!\"add.u64 {dst.ptxName}, {operand64Text a}, {operand64Text b};\"\n  | .ldParam64 dst symbol => s!\"ld.param.u64 {dst.ptxName}, [{symbol}];\"\n  | .cvtaGlobal64 dst src => s!\"cvta.to.global.u64 {dst.ptxName}, {operand64Text src};\"\n  | .movF32 dst value =>\n      let digits := Nat.toDigits 16 value.toNat\n      s!\"mov.f32 {dst.ptxName}, 0f{String.ofList (List.replicate (8 - digits.length) '0' ++ digits)};\"\n  | .loadF32 dst address => s!\"ld.global.f32 {dst.ptxName}, [{operand64Text address}];\"\n  | .fmaRN dst a b c => s!\"fma.rn.f32 {dst.ptxName}, {operandText a}, {operandText b}, {operandText c};\"\n  | .add32 dst a b => s!\"add.u32 {dst.ptxName}, {operandText a}, {operandText b};\"\n  | .setpLt dst a b => s!\"setp.lt.u32 {dst.ptxName}, {operandText a}, {operandText b};\"\n  | .branchIf predicate target => s!\"@{predicate.ptxName} bra PC_{target};\"\n  | .addF32RN dst a b => s!\"add.rn.f32 {dst.ptxName}, {operandText a}, {operandText b};\"\n  | .maxPositiveZero dst src => s!\"max.f32 {dst.ptxName}, {operandText src}, 0f00000000;\"\n  | .storeF32 address src => s!\"st.global.f32 [{operand64Text address}], {operandText src};\"\n  | .ret => \"ret;\"\n\nend ReluLayer.PTX"
         }
       }
     }

@@ -29,7 +29,8 @@ def parameters {α : Type} [Storage α]
 
 /-- The upstream sequential forward program takes W, b, and x and returns y. -/
 def forwardProgram {α : Type} [Storage α] [Context α] :
-    Runtime.Autograd.Model.Program α [[outputSize, inputSize], [outputSize], [inputSize]] [outputSize] :=
+    Runtime.Autograd.Model.Program α [[outputSize, inputSize], [outputSize], [inputSize]]
+        [outputSize] :=
   model.forward .eval
 
 end ReluLayer

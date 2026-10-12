@@ -15,16 +15,15 @@ at most the existing accumulated rounding budget.
 
 ```lean
 theorem layer_kernel_forward_abs_error_le (data : TensorData layerLayout layerLaunch.rows)
-    (env : Environment) (args : Argument → Word64) (t : Thread layerLaunch)
-    (initial : State Register) (hentry : KernelEntry layerLaunch layerLayout env args data initial)
+    (env : Environment) (args : Argument → Word64) (buffers : Buffers) (t : Thread layerLaunch)
+    (initial : State Register)
+    (hentry : KernelEntry layerLaunch layerLayout env args buffers data initial)
     (hfinite : FiniteRowTrace data t.rowIndex) :
-    let output := elementAddress (convertedBuffers env args) .output t.row
     ∃ final word,
-      run (kernelProgram layerLaunch layerLayout) t.identity
-        (kernelSteps layerLaunch layerLayout) initial env (some FP32.floatLibArithmetic) = some final ∧
-      final.returned = true ∧
-      final.globalMemory output = some word ∧
-      (∀ address, address ≠ output → final.globalMemory address = initial.globalMemory address) ∧
+      Returns (kernelProgram layerLaunch layerLayout) (layerContext t env) initial final ∧
+      final.globalMemory (t.outputAddress buffers) = some word ∧
+      (∀ address, address ≠ t.outputAddress buffers →
+        final.globalMemory address = initial.globalMemory address) ∧
       FP32.isFinite word = true ∧
       |FP32.toReal word -
         getScalar (ReluLayer.forward (decodedWeights data) (decodedBias data) (decodedInput data))
@@ -33,7 +32,9 @@ theorem layer_kernel_forward_abs_error_le (data : TensorData layerLayout layerLa
 
 `Thread.rowIndex` packages the owned row and its range proof. `word` is the
 value in output memory, so the public conclusion needs no PC, counter or scratch
-register facts. The block proofs retain those internal facts for composition.
+register facts. The block proofs retain necessary internal facts for composition. `Returns`
+asserts a successful finite execution and a returned final state. The concrete
+`layerContext` selects the thread identity, environment and FloatLib arithmetic.
 `traceErrorBudget` sums the local half-ULP budgets of the ordered FMA loop and
 bias addition using the actual rounded accumulators. ReLU contributes no
 additional error term. No explicit constant or input-only error estimate is
@@ -41,7 +42,8 @@ claimed.
 
 To inspect the proof chain:
 
-1. [Dimensions](ReluLayer/Dimensions.lean) supplies the shared shapes.
+1. [Dimensions](ReluLayer/Dimensions.lean) supplies the shared shapes, and
+   [Layer](ReluLayer/PTX/Layer.lean) supplies the concrete launch and layout.
    [Specification](ReluLayer/Specification.lean) defines the upstream Sequential
    architecture and explicit weight-then-bias state.
    [RealForward](ReluLayer/RealForward.lean) proves evaluation succeeds and each
@@ -49,7 +51,7 @@ To inspect the proof chain:
 2. [Machine](ReluLayer/PTX/Machine.lean) defines instruction execution over
    private registers, predicates and PC with abstract global word memory.
    [Environment](ReluLayer/PTX/Environment.lean) supplies pointer parameters and
-   the admitted address conversion. [FloatArithmetic](ReluLayer/PTX/FloatArithmetic.lean)
+   the supplied partial generic-to-global address conversion. [FloatArithmetic](ReluLayer/PTX/FloatArithmetic.lean)
    supplies FloatLib binary32 nearest-even addition and single-rounding FMA,
    with proofs of agreement with FloatLib reference arithmetic.
 3. [BaseLoading](ReluLayer/PTX/BaseLoading.lean),
@@ -69,7 +71,7 @@ To inspect the proof chain:
 The two public hypotheses have concrete responsibilities:
 
 - `KernelEntry`: start at PC zero in an active state; supply the four pointer
-  parameters and their admitted conversions; put the specified input words at
+  parameters and their successful conversions to the supplied global buffers; put the specified input words at
   their computed addresses. Scratch registers and predicates are arbitrary.
 - `FiniteRowTrace`: the selected row's weights and bias, the input vector, every
   accumulator prefix and the rounded bias-addition result are finite. Signed
@@ -77,8 +79,9 @@ The two public hypotheses have concrete responsibilities:
 
 One thread needs no output-separation hypothesis: its only store follows every
 input read. The output may alias an input, in which case that address is updated;
-only *other addresses* are preserved. `OutputsSeparated` remains an optional
-launch-level contract for future composition of different threads.
+only *other addresses* are preserved. `OutputsSeparated` lives in
+[Optional/Separation](ReluLayer/PTX/Optional/Separation.lean) as a launch-level
+contract for future composition of different threads.
 
 The model maps byte addresses directly to optional complete FP32 words. Valid
 word accesses are assumed. Allocation, permissions, alignment and byte encoding
@@ -112,7 +115,7 @@ Run the theorem audits, contract edge cases, arithmetic oracles and source
 correspondence checks with:
 
 ```sh
-lake build ReluLayer.PTX.Optional.AddressBounds
+lake build ReluLayer.PTX.Optional.AddressBounds ReluLayer.PTX.Optional.Separation
 lake env lean --run checks/RowSelection.lean
 lake env lean --run checks/AddressCalculation.lean
 lake env lean --run checks/BaseLoading.lean

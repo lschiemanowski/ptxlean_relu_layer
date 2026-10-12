@@ -1,4 +1,3 @@
-import ReluLayer.Dimensions
 import ReluLayer.PTX.Registers
 import Mathlib.Data.Nat.Basic
 
@@ -42,10 +41,11 @@ def rowSelection (threads : Nat) : List (Instruction Register) :=
     .mov .block .ctaidX,
     .madLo .row (.reg .block) (.imm (BitVec.ofNat 32 threads)) (.reg .thread) ]
 
-private def finalState (cfg : Launch) (t : Thread cfg) (initial : State Register) : State Register :=
-  let s := initial.write .thread t.identity.tidX
-  let s := s.write .block t.identity.ctaidX
-  s.write .row (s.regs .block * BitVec.ofNat 32 cfg.threads + s.regs .thread)
+private def finalState (cfg : Launch) (t : Thread cfg) (initial : State Register) : State
+    Register :=
+  let s := initial.writeNext .thread t.identity.tidX
+  let s := s.writeNext .block t.identity.ctaidX
+  s.writeNext .row (s.regs .block * BitVec.ofNat 32 cfg.threads + s.regs .thread)
 
 /-- The selected row and the state preserved by the three-instruction block. -/
 structure RowResult (cfg : Launch) (t : Thread cfg) (initial final : State Register) : Prop where
@@ -60,16 +60,16 @@ structure RowResult (cfg : Launch) (t : Thread cfg) (initial final : State Regis
 /-- Arbitrary scratch values are allowed; a fitting launch computes the owned row without wrap. -/
 theorem rowSelection_correct (cfg : Launch) (hfit : cfg.rows ≤ 2 ^ 32)
     (t : Thread cfg) (initial : State Register) (hpc : initial.pc = 0)
-    (hactive : initial.returned = false) (env : Environment)
-    (ops : Option FP32.Arithmetic := none) :
-    ∃ final, run (rowSelection cfg.threads) t.identity (rowSelection cfg.threads).length
-        initial env ops = some final ∧ RowResult cfg t initial final := by
+    (hactive : initial.returned = false) (ctx : ExecutionContext)
+    (hid : ctx.id = t.identity) :
+    ∃ final, run (rowSelection cfg.threads) ctx (rowSelection cfg.threads).length
+        initial = some final ∧ RowResult cfg t initial final := by
   refine ⟨finalState cfg t initial, ?_, ?_⟩
-  · simp [run, step, rowSelection, Instruction.execute, Operand.read, State.write,
-      finalState, hpc, hactive]
+  · simp [run, step, rowSelection, Instruction.execute, Operand.read, State.writeNext,
+      finalState, hpc, hactive, hid]
   · constructor
-    · simp [finalState, State.write, rowSelection, hpc]
-    · simp only [finalState, State.write, Thread.identity,
+    · simp [finalState, State.writeNext, rowSelection, hpc]
+    · simp only [finalState, State.writeNext, Thread.identity,
         reduceCtorEq, ↓reduceIte, BitVec.ofNat_mul_ofNat,
         BitVec.ofNat_add_ofNat, BitVec.toNat_ofNat]
       rw [Nat.mul_comm t.block.val cfg.threads]
@@ -79,11 +79,6 @@ theorem rowSelection_correct (cfg : Launch) (hfit : cfg.rows ≤ 2 ^ 32)
     · rfl
     · rfl
     · intro r ht hb hr
-      simp [finalState, State.write, ht, hb, hr]
-
-/-- The launch counts are fixed by the selected PTX; its row count matches the shared shape. -/
-def layerLaunch : Launch := ⟨12, 256, by decide, by decide⟩
-
-theorem layerLaunch_rows : layerLaunch.rows = outputSize := rfl
+      simp [finalState, State.writeNext, ht, hb, hr]
 
 end ReluLayer.PTX

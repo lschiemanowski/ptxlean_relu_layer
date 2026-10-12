@@ -46,6 +46,7 @@ memory contents, loads and stores, allocation, alignment, and disjointness
 are outside this address-arithmetic result.
 
 The word-level exit contract also preserves predicates and active status.
-Its execution theorem accepts arbitrary arithmetic operation parameters.
+Its execution theorem accepts a required execution context; this block does
+not use the context's arithmetic.
 Whole-kernel composition uses the word pointer equations directly; it does not
 require the optional natural-address bounds theorem.

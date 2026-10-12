@@ -4,7 +4,7 @@ import ReluLayer.PTX.FP32
 
 namespace ReluLayer.PTX
 
-abbrev Buffers := Argument → Word64
+variable {cfg : Launch}
 
 structure TensorData (layout : Layout) (rows : Nat) where
   weights : Fin rows → Fin layout.inputWidth → FP32.Bits
@@ -25,15 +25,8 @@ structure InputsStored (layout : Layout) (rows : Nat) (buffers : Buffers)
   input : ∀ j, memory (elementAddress buffers .input j.val) = some (data.input j)
   bias : ∀ i, memory (elementAddress buffers .bias i.val) = some (data.bias i)
 
-/-- Optional launch-level separation; single-thread correctness does not require it. -/
-structure OutputsSeparated (layout : Layout) (rows : Nat) (buffers : Buffers) : Prop where
-  weights : ∀ (i r : Fin rows) (j : Fin layout.inputWidth),
-    elementAddress buffers .output i.val ≠ weightAddress layout buffers r.val j.val
-  input : ∀ (i : Fin rows) (j : Fin layout.inputWidth),
-    elementAddress buffers .output i.val ≠ elementAddress buffers .input j.val
-  bias : ∀ (i r : Fin rows),
-    elementAddress buffers .output i.val ≠ elementAddress buffers .bias r.val
-  outputs : ∀ (i r : Fin rows), i ≠ r →
-    elementAddress buffers .output i.val ≠ elementAddress buffers .output r.val
+/-- The byte address owned by this thread's output store. -/
+def Thread.outputAddress (t : Thread cfg) (buffers : Buffers) : Word64 :=
+  elementAddress buffers .output t.row
 
 end ReluLayer.PTX
