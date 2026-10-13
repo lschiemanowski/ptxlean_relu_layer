@@ -1,0 +1,208 @@
+{
+  "id": "92e886b6-d48f-453c-88c9-99dfc65e765d",
+  "base": "c700bd7d21e24ed960ea0e8672a47696ec570a4e",
+  "contentTree": "64d9e01510176afdccd7a9c322bdf1a43bfe065c",
+  "reviewer": "Codex",
+  "summary": "Uniform block composition, focused contracts, consolidated checks, removal of optional proofs and direct numerical triangle-inequality proofs",
+  "examined": [
+    {
+      "id": "row-selection",
+      "outcome": "revised",
+      "reason": "The theorem now accepts an enclosing instruction program and CodeAt at the initial PC. RowResult records initial PC plus block length, with the same selected row and frame facts. Generic and concrete offset checks cover skipped prefix code and unexecuted suffix code. The existing check probes move into the kernel group, with exact description links rebound to their complete relevant sections; no distinct example or runtime oracle was dropped."
+    },
+    {
+      "id": "kernel-execution",
+      "outcome": "revised",
+      "reason": "Uses direct CodeAt/run_add composition and the focused body result while preserving KernelEntry, KernelResult, kernel_correct, instruction list and public Sequential guarantee. Consolidated execution checks and complete source/header comparison are run by the single command alongside numerical and Sequential checks. Removed optional imports, build targets and separation predicate examples; all actual execution, alias, wraparound, frame and independent ordered/full-width oracles remain and pass."
+    },
+    {
+      "id": "ptx-kernel",
+      "outcome": "unchanged",
+      "reason": "The actual instruction list, launch/layout parameters, entry/output contracts, formal arithmetic and per-thread numerical scope are unchanged. All block proofs now execute directly in the enclosing program, and computational contracts omit unused aggregate facts. Complete PTX source/header, independent ordered execution, aliasing, frame, numerical and Sequential checks pass; the new single command executes all groups. Removing optional natural-address bounds and launch-separation responsibilities does not alter this selected source kernel, its caller setup or the per-thread formal result."
+    },
+    {
+      "id": "address-calculation",
+      "outcome": "revised",
+      "reason": "Generalized modular execution to an arbitrary enclosing program under CodeAt with PC advance by block length and unchanged pointer/frame facts. Removed the unused optional natural-address-bounds child and its advertised claims. Consolidated checks retain wide multiply, word wrapping, source/destination aliasing, alternative widths, skipped-prefix placement and a direct near-boundary three-pointer execution probe; only optional AddressResult proof checks/audits were removed."
+    },
+    {
+      "id": "address-bounds",
+      "outcome": "revised",
+      "reason": "Deleted the unused optional AddressResult/addressCalculation_correct responsibility, retaining modular/wrapping pointer execution and direct near-boundary probes. No main theorem depended on this result. Subsequent numerical cleanup changes only triangle-inequality proof bodies; the main hypotheses and guarantee remain intact."
+    },
+    {
+      "id": "body-contract",
+      "outcome": "revised",
+      "reason": "Removed the unused row-register constraint and focused BodyResult on return/result/OutputStored; the ordered arithmetic and memory contract remain unchanged. Removed optional launch-separation responsibility and its dedicated predicates. Consolidated checks retain incorrect/missing-input rejection, compatible read-only input aliases, actual output/bias alias execution, stale row scratch and every-address-except-output frame; only the unused optional separation checks were deleted."
+    },
+    {
+      "id": "dot-loop",
+      "outcome": "revised",
+      "reason": "The generator takes the actual entry offset and emits its absolute back-edge target. Prefix/iteration/completion theorems run inside an enclosing program with CodeAt, and the invariant tracks entry plus loop offsets. Ordered FMA recurrence, eight-step iteration, dynamic instruction count, loads and frame remain unchanged. Tests cover taken/untaken branches at nonzero entry. The existing check probes move into the kernel group, with exact description links rebound to their complete relevant sections; no distinct example or runtime oracle was dropped."
+    },
+    {
+      "id": "relu-suffix",
+      "outcome": "revised",
+      "reason": "One theorem now executes in any enclosing program under CodeAt. Removed the start default and duplicate _at/standalone variants; entry no longer fixes a PC and exit is initial PC plus length. Bias addition, maximum, output/frame and return claims are unchanged. Standalone and non-loop-prefix fixtures still pass. Updated its parent passage to the focused aggregate body statement; suffix implementation and its own register/PC/frame contract remain unchanged in this step. The existing check probes move into the kernel group, with exact description links rebound to their complete relevant sections; no distinct example or runtime oracle was dropped."
+    },
+    {
+      "id": "base-loading",
+      "outcome": "revised",
+      "reason": "Generalized base execution to any current PC under CodeAt and PC advance by the block length. Parameter slots, successful conversions, converted base registers and preserved-state facts are unchanged. Standalone, arbitrary-prefix/suffix and concrete nonzero-PC cases pass. The existing check probes move into the kernel group, with exact description links rebound to their complete relevant sections; no distinct example or runtime oracle was dropped."
+    },
+    {
+      "id": "execution-context",
+      "outcome": "revised",
+      "reason": "Removed unused step_append_of_step and run_append_of_run proof helpers. Machine definitions including Instruction.execute, step, run, Returns and run_add remain byte-for-byte unchanged. Refreshed complete source quote; context/returned-state behavioral contract is unchanged."
+    },
+    {
+      "id": "fp32-arithmetic",
+      "outcome": "revised",
+      "reason": "Revised implementation-link metadata for the consolidated checks; mathematical contract unchanged. The formal arithmetic/reference theorems and every bit-level runtime probe, native Lean comparison and full-width FloatLib execution oracle are unchanged. Moved the checks into the numerical group and rebound the complete passage link."
+    },
+    {
+      "id": "real-relu",
+      "outcome": "revised",
+      "reason": "Revised implementation-link metadata for the consolidated checks; mathematical contract unchanged. The finite real/ReLU/error-transfer contracts remain unchanged. Consolidation retains exact rational decoding/exception cases and shares the duplicate negative-zero probe; direct bit-pattern maximum probes are also in this group."
+    },
+    {
+      "id": "rounding-error",
+      "outcome": "revised",
+      "reason": "Consolidated numerical probes retain finite-trace, overflow, accumulated-tie, cancellation and subnormal checks. Replaced the two expanded error decompositions and ring restatements by direct abs_sub_le arguments with additive cancellation, saving 11 proof lines. Verified every definition/structure and theorem header against the preceding snapshot; finite-row assumptions, budgets, numerical results and main theorem statement are unchanged. Refreshed the exact source passage; all original check files remain unchanged in this increment."
+    },
+    {
+      "id": "sequential-bridge",
+      "outcome": "unchanged",
+      "reason": "The main theorem file, six parameter/coordinate examples and its description are unchanged. The numerical dependency simplifies only two proof bodies; all contracts, definitions, budgets and hypotheses remain identical. The complete verification command runs all three groups, and the public axiom audits must match the initial simplification baseline."
+    },
+    {
+      "id": "launch-separation",
+      "outcome": "revised",
+      "reason": "Deleted the unused optional OutputsSeparated definition and its description. The main theorem does not require this condition and is unchanged. Removed only predicates about separation, retaining all actual aliasing execution and memory frame examples and compatible read-only input aliasing."
+    }
+  ],
+  "unresolved": [],
+  "results": [
+    {
+      "tree": "64d9e01510176afdccd7a9c322bdf1a43bfe065c",
+      "method": "python3 scripts/check_main_theorem.py; proof-file definition/structure and theorem-header comparison; frozen other library/check/PTX hashes; baseline public axiom comparison; git diff --check; stratic validate",
+      "outcome": "pass",
+      "environment": "Lean 4.35.0-rc4 with pinned local dependencies and existing compatibility patches/warnings; selected abstract per-thread model",
+      "evidence": "Main bridge build and all three kernel/numerical/Sequential groups exit zero. Two expanded ring-based error decompositions replaced by direct abs_sub_le/cancellation proofs, reducing RoundingError.lean from 192 to 181 lines. Every definition/structure and theorem header in that file is unchanged from the previous prepared increment; every other library source, check file and PTX source is byte-identical. Actual aliasing, wraparound, frame, full-width, source/header, finite-trace, overflow, ties, cancellation, underflow and decoding probes still pass. Public Sequential axiom audits match the initial c700bd7 baseline. No new assumption, error budget or theorem statement; prefix-sum definitions are unchanged. Cumulative direct-PC composition, focused body result, three check groups and removal of unused optional modules are retained. Exact Stratic links and whitespace validate; snapshots match; no commit or push.",
+      "tests": [],
+      "id": "127e482e-5488-4d9a-9cf7-0ce7f05988e9",
+      "recordedAt": "2026-10-13T17:31:59.674Z"
+    }
+  ],
+  "recordedAt": "2026-10-13T17:32:18.873Z",
+  "unmapped": [
+    {
+      "path": "README.md",
+      "reason": "Reviewed cumulative composition and consolidated-check documentation. Removed the two optional module links and their advertised results; retains the no-separation per-thread statement and source block walkthrough."
+    },
+    {
+      "path": "checks/KernelExecution.lean",
+      "reason": "Reviewed shared integer arithmetic and computation fixtures, namespaced complete block examples, full-width loop/body runtime drivers, complete source/header comparison, independent kernel oracles and the main dispatch. Exact child passages cover the block statements; remaining shared fixture/dispatch regions intentionally serve several descriptions. Original 162-example mapping and all runtime checks establish retained coverage. This increment deletes six optional-proof example occurrences and two optional theorem audits, replaces one of those examples by a direct three-pointer near-boundary execution check, and removes an unused separation proof. Every other example/runtime probe remains, as confirmed by the before/after audit."
+    },
+    {
+      "path": "checks/Numerics.lean",
+      "reason": "Reviewed common imports and main dispatch for the three linked numerical sections; all previous arithmetic, real decoding and rounding-error probes/audits are retained. The dispatch executes every section."
+    },
+    {
+      "path": "scripts/check_main_theorem.py",
+      "reason": "Reviewed driver: builds the main Sequential bridge and executes kernel, numerical and Sequential checks. Removed the two optional build targets after removing their imports from the checks; subprocess fail-fast behavior, working directory and thread setting are unchanged."
+    },
+    {
+      "path": "stratic/descriptions/address-bounds.json",
+      "reason": "Intentionally deleted the documentation/metadata for the removed optional proof responsibility. Parent prose no longer advertises these results; the remaining graph validates. Historical committed review records remain intact."
+    },
+    {
+      "path": "stratic/descriptions/address-bounds.md",
+      "reason": "Intentionally deleted the documentation/metadata for the removed optional proof responsibility. Parent prose no longer advertises these results; the remaining graph validates. Historical committed review records remain intact."
+    },
+    {
+      "path": "stratic/descriptions/address-calculation.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/address-calculation.md",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/base-loading.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/base-loading.md",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/body-contract.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/body-contract.md",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/dot-loop.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/dot-loop.md",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/execution-context.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/fp32-arithmetic.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/kernel-execution.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/kernel-execution.md",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/launch-separation.json",
+      "reason": "Intentionally deleted the documentation/metadata for the removed optional proof responsibility. Parent prose no longer advertises these results; the remaining graph validates. Historical committed review records remain intact."
+    },
+    {
+      "path": "stratic/descriptions/launch-separation.md",
+      "reason": "Intentionally deleted the documentation/metadata for the removed optional proof responsibility. Parent prose no longer advertises these results; the remaining graph validates. Historical committed review records remain intact."
+    },
+    {
+      "path": "stratic/descriptions/real-relu.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/relu-suffix.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/relu-suffix.md",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/rounding-error.json",
+      "reason": "Reviewed the exact implementation quote updated to the shorter two triangle-inequality proof bodies. Existing prose, current nonempty summary, numerical contract and numerical check passage remain accurate and unchanged."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.json",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.md",
+      "reason": "Reviewed cumulative description and metadata edits, complete exact check/source links and current nonempty summaries. This increment rebinds consolidated check passages and describes verification coverage; formal numerical/Sequential guarantees remain unchanged."
+    },
+    {
+      "path": "ReluLayer/PTX/RoundingError.lean",
+      "reason": "Reviewed two proof-only replacements: direct abs_sub_le plus cancellation replaces manual difference expansions and ring restatements. All top-level definitions/structures and theorem headers match the preceding snapshot exactly. The linked complete source passage is refreshed; no new hypothesis, budget or numerical claim is introduced."
+    }
+  ]
+}

@@ -100,23 +100,14 @@ private theorem prefixAccumulator_abs_error_le (data : TensorData layout rows) (
     rw [prefixAccumulator_succ _ _ _ _ hlt, exactPrefix_succ _ _ _ hlt,
       prefixErrorBudget_succ _ _ _ hlt]
     unfold fmaSite
-    have htriangle := abs_add_le
+    rw [add_comm (exactPrefix data i k)]
+    have htriangle := abs_sub_le
       (FP32.toReal (FP32.floatLibArithmetic.fmaRN (data.weights i ⟨k, hlt⟩)
-        (data.input ⟨k, hlt⟩) (prefixAccumulator FP32.floatLibArithmetic data i k)) -
-          (FP32.toReal (data.weights i ⟨k, hlt⟩) * FP32.toReal (data.input ⟨k, hlt⟩) +
-            FP32.toReal (prefixAccumulator FP32.floatLibArithmetic data i k)))
-      (FP32.toReal (prefixAccumulator FP32.floatLibArithmetic data i k) - exactPrefix data i k)
-    have heq : FP32.toReal (FP32.floatLibArithmetic.fmaRN (data.weights i ⟨k, hlt⟩)
-        (data.input ⟨k, hlt⟩) (prefixAccumulator FP32.floatLibArithmetic data i k)) -
-        (exactPrefix data i k + FP32.toReal (data.weights i ⟨k, hlt⟩) * FP32.toReal (data.input
-            ⟨k, hlt⟩)) =
-      (FP32.toReal (FP32.floatLibArithmetic.fmaRN (data.weights i ⟨k, hlt⟩)
-        (data.input ⟨k, hlt⟩) (prefixAccumulator FP32.floatLibArithmetic data i k)) -
-          (FP32.toReal (data.weights i ⟨k, hlt⟩) * FP32.toReal (data.input ⟨k, hlt⟩) +
-            FP32.toReal (prefixAccumulator FP32.floatLibArithmetic data i k))) +
-      (FP32.toReal (prefixAccumulator FP32.floatLibArithmetic data i k) - exactPrefix data i k)
-          := by ring
-    rw [heq]
+        (data.input ⟨k, hlt⟩) (prefixAccumulator FP32.floatLibArithmetic data i k)))
+      (fmaSite data i ⟨k, hlt⟩)
+      (exactPrefix data i k +
+        FP32.toReal (data.weights i ⟨k, hlt⟩) * FP32.toReal (data.input ⟨k, hlt⟩))
+    rw [fmaSite, add_comm (exactPrefix data i k), add_sub_add_left_eq_sub] at htriangle
     exact htriangle.trans (by linarith)
 
 /-- Bias addition contributes one further half-ULP bound. -/
@@ -136,15 +127,13 @@ theorem preactivation_abs_error_le (data : TensorData layout rows) (i : Fin rows
     Model.epsilonAt FloatFormat.binary32
       (FP32.toReal (prefixAccumulator FP32.floatLibArithmetic data i layout.inputWidth) +
         FP32.toReal (data.bias i)) at hbias
-  have heq : FP32.toReal (preactivation FP32.floatLibArithmetic data i) -
-      (exactPrefix data i layout.inputWidth + FP32.toReal (data.bias i)) =
-    (FP32.toReal (preactivation FP32.floatLibArithmetic data i) -
-      (FP32.toReal (prefixAccumulator FP32.floatLibArithmetic data i layout.inputWidth) +
-        FP32.toReal (data.bias i))) +
-    (FP32.toReal (prefixAccumulator FP32.floatLibArithmetic data i layout.inputWidth) -
-      exactPrefix data i layout.inputWidth) := by ring
-  rw [heq]
-  exact (abs_add_le _ _).trans (by unfold traceErrorBudget; rw [← prefixErrorBudget_full]; linarith)
+  have htriangle := abs_sub_le
+    (FP32.toReal (preactivation FP32.floatLibArithmetic data i))
+    (FP32.toReal (prefixAccumulator FP32.floatLibArithmetic data i layout.inputWidth) +
+      FP32.toReal (data.bias i))
+    (exactPrefix data i layout.inputWidth + FP32.toReal (data.bias i))
+  rw [add_sub_add_right_eq_sub] at htriangle
+  exact htriangle.trans (by unfold traceErrorBudget; rw [← prefixErrorBudget_full]; linarith)
 
 private theorem exactPrefix_full (data : TensorData layout rows) (i : Fin rows) :
     exactPrefix data i layout.inputWidth =

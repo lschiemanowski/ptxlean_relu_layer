@@ -14,11 +14,12 @@ follow NVIDIA's [integer multiplication](https://docs.nvidia.com/cuda/archive/12
 and [integer addition](https://docs.nvidia.com/cuda/archive/12.0.1/parallel-thread-execution/index.html#integer-arithmetic-instructions-add)
 descriptions.
 
-The fragment starts with an active thread, an unsigned row register, and converted global
-base-address registers for weights, bias, and output. It executes two wide
+The fragment starts with an active thread, an unsigned row register, and converted
+global base-address registers for weights, bias, and output. `CodeAt` requires
+its five instructions to occur at the current PC in the enclosing program. It executes two wide
 multiplies and three additions through instruction fetches and register
-updates. For arbitrary initial scratch registers, its final program counter
-is five, the row, base registers, input pointer, and global-memory snapshot are
+updates. For arbitrary initial scratch registers, its program counter
+advances by the block length, the row, base registers, input pointer, and global-memory snapshot are
 preserved, and its computed pointers
 satisfy
 
@@ -32,15 +33,9 @@ The main execution statement gives modular pointer values, including when
 pointer addition wraps. The layout requires a positive input width and a row
 stride fitting a 32-bit immediate.
 
-Optional natural-address bounds are proved separately. They require an in-range
-row and each base plus its complete buffer size to be strictly below `2^64`.
-Under those additional conditions the pointers do not wrap, and a full four-byte
-element lies within its corresponding buffer. These bounds are not assumptions
-of whole-kernel execution.
-
 The layer specializes the width to 1024 and the row count to the configured
-launch's 3072 rows. The five formal instructions are compared with the exact
-PTX source fragment by an executable source check. The correspondence checker
+launch's 3072 rows. The five formal instructions are included in the complete
+kernel source comparison. The correspondence checker
 is not a proved parser. Base-address initialization and conversion, actual
 memory contents, loads and stores, allocation, alignment, and disjointness
 are outside this address-arithmetic result.
@@ -48,5 +43,4 @@ are outside this address-arithmetic result.
 The word-level exit contract also preserves predicates and active status.
 Its execution theorem accepts a required execution context; this block does
 not use the context's arithmetic.
-Whole-kernel composition uses the word pointer equations directly; it does not
-require the optional natural-address bounds theorem.
+Whole-kernel composition uses the modular word pointer equations directly.

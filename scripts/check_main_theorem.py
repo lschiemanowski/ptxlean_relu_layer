@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare dependencies, build the Sequential bridge, and audit its theorem."""
+"""Build the proofs and run kernel, numerical and Sequential verification."""
 
 import os
 from pathlib import Path
@@ -15,6 +15,8 @@ def main():
     commands = [
         ['lake', 'env', sys.executable, 'scripts/prepare_dependencies.py'],
         ['lake', 'build', 'ReluLayer.SequentialBridge'],
+        ['lake', 'env', 'lean', '--run', 'checks/KernelExecution.lean'],
+        ['lake', 'env', 'lean', '--run', 'checks/Numerics.lean'],
         ['lake', 'env', 'lean', '--run', 'checks/SequentialBridge.lean'],
     ]
     for command in commands:

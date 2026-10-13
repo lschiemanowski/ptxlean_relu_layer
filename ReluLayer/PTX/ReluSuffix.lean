@@ -4,7 +4,7 @@ namespace ReluLayer.PTX
 
 variable {layout : Layout} {rows : Nat}
 
-/-- Exactly PTX lines 58--62, with a fragment-relative entry PC of zero. -/
+/-- Exactly PTX lines 58--62; these instructions contain no branch targets. -/
 def reluSuffix : List (Instruction Register) :=
   [ .loadF32 .biasValue (.reg .biasRead),
     .addF32RN .accumulator (.reg .accumulator) (.reg .biasValue),
@@ -14,8 +14,7 @@ def reluSuffix : List (Instruction Register) :=
 
 /-- The suffix consumes a completed accumulator and the selected row's bias/output pointers. -/
 structure SuffixEntry (ops : FP32.Arithmetic) (data : TensorData layout rows)
-    (buffers : Buffers) (i : Fin rows) (initial : State Register) (start : Nat := 0) : Prop where
-  pc : initial.pc = start
+    (buffers : Buffers) (i : Fin rows) (initial : State Register) : Prop where
   active : initial.returned = false
   accumulator : initial.regs .accumulator = prefixAccumulator ops data i layout.inputWidth
   biasRead : initial.regs64 .biasRead = elementAddress buffers .bias i.val
@@ -35,9 +34,8 @@ private def finalState (ops : FP32.Arithmetic) (s : State Register) (bias : Word
 
 /-- Return with the specified stored result and all unrelated memory/register values preserved. -/
 structure SuffixResult (ops : FP32.Arithmetic) (data : TensorData layout rows)
-    (buffers : Buffers) (i : Fin rows) (initial final : State Register) (start : Nat := 0) : Prop
-        where
-  pc : final.pc = start + reluSuffix.length
+    (buffers : Buffers) (i : Fin rows) (initial final : State Register) : Prop where
+  pc : final.pc = initial.pc + reluSuffix.length
   returned : final.returned = true
   bias : final.regs .biasValue = data.bias i
   accumulator : final.regs .accumulator =
@@ -48,22 +46,27 @@ structure SuffixResult (ops : FP32.Arithmetic) (data : TensorData layout rows)
   regs64 : final.regs64 = initial.regs64
   predicates : final.predicates = initial.predicates
 
-/-- The same suffix theorem at its actual offset after any instruction prefix. -/
-theorem reluSuffix_correct_at (prelude : List (Instruction Register)) (ctx : ExecutionContext)
+/-- Execute the suffix at the current PC of an enclosing program. -/
+theorem reluSuffix_correct (program : List (Instruction Register)) (ctx : ExecutionContext)
     (data : TensorData layout rows)
     (buffers : Buffers) (i : Fin rows) (initial : State Register)
-    (hentry : SuffixEntry ctx.ops data buffers i initial prelude.length) :
-    ∃ final, run (prelude ++ reluSuffix) ctx reluSuffix.length initial = some final ∧
-      SuffixResult ctx.ops data buffers i initial final prelude.length := by
+    (hentry : SuffixEntry ctx.ops data buffers i initial)
+    (hcode : CodeAt program initial.pc reluSuffix) :
+    ∃ final, run program ctx reluSuffix.length initial = some final ∧
+      SuffixResult ctx.ops data buffers i initial final := by
   have hb : initial.globalMemory (initial.regs64 .biasRead) = some (data.bias i) := by
     rw [hentry.biasRead]; exact hentry.biasStored
-  have hoff (j : Nat) : ¬ prelude.length + j < prelude.length := by omega
+  have h0 := hcode 0 (by simp [reluSuffix])
+  have h1 := hcode 1 (by simp [reluSuffix])
+  have h2 := hcode 2 (by simp [reluSuffix])
+  have h3 := hcode 3 (by simp [reluSuffix])
+  have h4 := hcode 4 (by simp [reluSuffix])
+  simp [reluSuffix] at h0 h1 h2 h3 h4
   refine ⟨finalState ctx.ops initial (data.bias i), ?_, ?_⟩
-  · simp [run, step, reluSuffix, Instruction.execute, Operand.read, Operand64.read,
-      State.writeNext, finalState, hentry.pc, hentry.active, hb, List.getElem?_append,
-          Nat.add_assoc, hoff]
+  · simp [run, step, reluSuffix, h0, h1, h2, h3, h4, Instruction.execute, Operand.read,
+      Operand64.read, State.writeNext, finalState, hentry.active, hb, Nat.add_assoc]
   · constructor
-    · simp [finalState, State.writeNext, reluSuffix, hentry.pc, Nat.add_assoc]
+    · simp [finalState, State.writeNext, reluSuffix, Nat.add_assoc]
     · rfl
     · simp [finalState, State.writeNext]
     · simp [finalState, State.writeNext, hentry.accumulator]
@@ -76,13 +79,5 @@ theorem reluSuffix_correct_at (prelude : List (Instruction Register)) (ctx : Exe
     · intro r hb ha hr; simp [finalState, State.writeNext, hb, ha, hr]
     · rfl
     · rfl
-
-/-- Execute the suffix independently at fragment-relative PC zero. -/
-theorem reluSuffix_correct (ctx : ExecutionContext) (data : TensorData layout rows)
-    (buffers : Buffers) (i : Fin rows) (initial : State Register)
-    (hentry : SuffixEntry ctx.ops data buffers i initial) :
-    ∃ final, run reluSuffix ctx reluSuffix.length initial = some final ∧
-      SuffixResult ctx.ops data buffers i initial final := by
-  simpa using reluSuffix_correct_at [] ctx data buffers i initial hentry
 
 end ReluLayer.PTX

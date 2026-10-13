@@ -31,8 +31,9 @@ undefined; the absence of a modeled successor does not specify a GPU trap.
 The block theorem assumes all four named slots contain the supplied generic
 pointers and that each converts successfully to the corresponding supplied
 buffer address.
-Starting with an active thread at fragment-relative PC zero, all eight
-instructions succeed. The final program counter is eight, and every target
+Starting with an active thread, `CodeAt` places these eight instructions at
+the current PC of an enclosing program. All eight instructions succeed and
+the program counter advances by the block length, and every target
 register contains the converted address of its corresponding parameter.
 Every 32-bit register, every other 64-bit register, and the global-memory word
 map are preserved. The parameter and conversion environment is read-only.

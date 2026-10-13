@@ -1,4 +1,5 @@
 import ReluLayer.PTX.Registers
+import ReluLayer.PTX.ProgramComposition
 import Mathlib.Data.Nat.Basic
 
 namespace ReluLayer.PTX
@@ -49,7 +50,7 @@ private def finalState (cfg : Launch) (t : Thread cfg) (initial : State Register
 
 /-- The selected row and the state preserved by the three-instruction block. -/
 structure RowResult (cfg : Launch) (t : Thread cfg) (initial final : State Register) : Prop where
-  pc : final.pc = (rowSelection cfg.threads).length
+  pc : final.pc = initial.pc + (rowSelection cfg.threads).length
   row : (final.regs .row).toNat = t.row
   regs64 : final.regs64 = initial.regs64
   memory : final.globalMemory = initial.globalMemory
@@ -58,17 +59,21 @@ structure RowResult (cfg : Launch) (t : Thread cfg) (initial final : State Regis
   other32 : ∀ r, r ≠ .thread → r ≠ .block → r ≠ .row → final.regs r = initial.regs r
 
 /-- Arbitrary scratch values are allowed; a fitting launch computes the owned row without wrap. -/
-theorem rowSelection_correct (cfg : Launch) (hfit : cfg.rows ≤ 2 ^ 32)
-    (t : Thread cfg) (initial : State Register) (hpc : initial.pc = 0)
+theorem rowSelection_correct (program : List (Instruction Register))
+    (cfg : Launch) (hfit : cfg.rows ≤ 2 ^ 32) (t : Thread cfg) (initial : State Register)
     (hactive : initial.returned = false) (ctx : ExecutionContext)
-    (hid : ctx.id = t.identity) :
-    ∃ final, run (rowSelection cfg.threads) ctx (rowSelection cfg.threads).length
+    (hid : ctx.id = t.identity) (hcode : CodeAt program initial.pc (rowSelection cfg.threads)) :
+    ∃ final, run program ctx (rowSelection cfg.threads).length
         initial = some final ∧ RowResult cfg t initial final := by
+  have h₀ := hcode 0 (by simp [rowSelection])
+  have h₁ := hcode 1 (by simp [rowSelection])
+  have h₂ := hcode 2 (by simp [rowSelection])
+  simp [rowSelection] at h₀ h₁ h₂
   refine ⟨finalState cfg t initial, ?_, ?_⟩
-  · simp [run, step, rowSelection, Instruction.execute, Operand.read, State.writeNext,
-      finalState, hpc, hactive, hid]
+  · simp [run, step, rowSelection, h₀, h₁, h₂, Instruction.execute, Operand.read,
+      State.writeNext, finalState, hactive, hid, Nat.add_assoc]
   · constructor
-    · simp [finalState, State.writeNext, rowSelection, hpc]
+    · simp [finalState, State.writeNext, rowSelection, Nat.add_assoc]
     · simp only [finalState, State.writeNext, Thread.identity,
         reduceCtorEq, ↓reduceIte, BitVec.ofNat_mul_ofNat,
         BitVec.ofNat_add_ofNat, BitVec.toNat_ofNat]

@@ -139,27 +139,4 @@ theorem run_add [DecidableEq Reg] (program : List (Instruction Reg)) (ctx : Exec
   | zero => simp [run]
   | succ a ih => simp [Nat.succ_add, run, ih, Option.bind_assoc]
 
-private theorem step_append_of_step [DecidableEq Reg]
-    (program suffix : List (Instruction Reg)) (ctx : ExecutionContext) (s next : State Reg)
-    (h : step program ctx s = some next) :
-    step (program ++ suffix) ctx s = some next := by
-  have hpc : s.pc < program.length := by
-    by_contra hn
-    have hf := List.getElem?_eq_none (l := program) (by omega : program.length ≤ s.pc)
-    simp [step, hf] at h
-  simpa only [step, List.getElem?_append_left hpc] using h
-
-/-- Appending instructions cannot change an already successful prefix execution. -/
-theorem run_append_of_run [DecidableEq Reg]
-    (program suffix : List (Instruction Reg)) (ctx : ExecutionContext) (fuel : Nat)
-    (s final : State Reg)
-    (h : run program ctx fuel s = some final) :
-    run (program ++ suffix) ctx fuel s = some final := by
-  induction fuel generalizing s with
-  | zero => simpa [run] using h
-  | succ fuel ih =>
-    obtain ⟨next, hs, ht⟩ := Option.bind_eq_some_iff.mp h
-    have he := step_append_of_step program suffix ctx s next hs
-    simpa only [run, he, Option.bind_some] using ih next ht
-
 end ReluLayer.PTX

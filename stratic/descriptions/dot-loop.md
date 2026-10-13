@@ -28,8 +28,8 @@ and [branch](https://docs.nvidia.com/cuda/archive/12.0.1/parallel-thread-executi
 descriptions within the selected word-memory/arithmetic abstractions.
 
 Two initialization instructions precede eight instructions per iteration.
-The fragment-relative loop entry is PC 2 and its exit is PC 10, so a width `n`
-executes `2 + 8 * n` instructions. These counts describe the instruction layout,
+For block entry PC `o`, the iteration entry is PC `o + 2` and its exit is
+PC `o + 10`. A width `n` executes `2 + 8 * n` instructions. These counts describe the instruction layout,
 not extra shape parameters. Positive input width and the existing row-stride
 bound ensure the counter never wraps in the proof.
 
@@ -38,3 +38,8 @@ position with PTX lines 43–55. It checks taken/untaken branches, unsigned
 comparison, missing operands and FMA aliasing, small ordered traces and a full
 1024-column run using explicitly artificial arithmetic. This is a tested source
 correspondence check, not a verified PTX parser or GPU execution.
+
+The loop is placed at an explicit instruction offset in an enclosing program.
+Its branch target is that offset plus the initialization length. `CodeAt`
+requires these instructions at the loop entry; all prefix and final execution
+results refer to that enclosing program and its actual program counters.

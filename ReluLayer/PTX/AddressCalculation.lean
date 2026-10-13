@@ -32,7 +32,7 @@ private def finalState (width : Nat) (initial : State Register) : State Register
 
 /-- Word-level execution facts hold even when pointer addition wraps. -/
 structure AddressWords (width : Nat) (initial final : State Register) : Prop where
-  pc : final.pc = (addressCalculation width).length
+  pc : final.pc = initial.pc + (addressCalculation width).length
   regs32 : final.regs = initial.regs
   memory : final.globalMemory = initial.globalMemory
   predicates : final.predicates = initial.predicates
@@ -52,14 +52,21 @@ structure AddressWords (width : Nat) (initial final : State Register) : Prop whe
   output : final.regs64 .outputWrite = initial.regs64 .outputBase +
     wideProduct (initial.regs .row) (BitVec.ofNat 32 fp32Bytes)
 
-theorem addressCalculation_exec (width : Nat) (ctx : ExecutionContext)
-    (initial : State Register) (hpc : initial.pc = 0) (hactive : initial.returned = false) :
-    ∃ final, run (addressCalculation width) ctx (addressCalculation width).length initial = some
-        final ∧
+theorem addressCalculation_exec (program : List (Instruction Register))
+    (width : Nat) (ctx : ExecutionContext) (initial : State Register)
+    (hactive : initial.returned = false)
+    (hcode : CodeAt program initial.pc (addressCalculation width)) :
+    ∃ final, run program ctx (addressCalculation width).length initial = some final ∧
       AddressWords width initial final := by
+  have h₀ := hcode 0 (by simp [addressCalculation])
+  have h₁ := hcode 1 (by simp [addressCalculation])
+  have h₂ := hcode 2 (by simp [addressCalculation])
+  have h₃ := hcode 3 (by simp [addressCalculation])
+  have h₄ := hcode 4 (by simp [addressCalculation])
+  simp [addressCalculation] at h₀ h₁ h₂ h₃ h₄
   refine ⟨finalState width initial, ?_, ?_⟩
-  · simp [run, step, addressCalculation, Instruction.execute, Operand.read,
-      Operand64.read, State.write64Next, finalState, hpc, hactive]
-  · constructor <;> simp [finalState, State.write64Next, addressCalculation, hpc]
+  · simp [run, step, addressCalculation, h₀, h₁, h₂, h₃, h₄, Instruction.execute,
+      Operand.read, Operand64.read, State.write64Next, finalState, hactive, Nat.add_assoc]
+  · constructor <;> simp [finalState, State.write64Next, addressCalculation, Nat.add_assoc]
 
 end ReluLayer.PTX

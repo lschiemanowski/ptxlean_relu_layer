@@ -258,8 +258,8 @@ byte encoding are outside this model.
 A program is a list of instructions. `step` fetches the instruction at the PC;
 `run` executes a specified number of steps. `Returns` states that some finite
 execution succeeds and reaches a returned state. The full `kernelProgram`
-concatenates the independent blocks and relocates the loop's branch target to
-its position in that combined program.
+concatenates the independent blocks and constructs the loop with its actual
+entry offset, so its branch targets the correct instruction in that program.
 
 ## 5. The block theorems and where to find them
 
@@ -268,7 +268,10 @@ block's required values, and records what remains unchanged. Internal PC and
 register facts support composition; the main theorem exposes the stored output.
 The setup, loop and suffix proofs are parameterized by launch or layout where
 needed; [Layer.lean](ReluLayer/PTX/Layer.lean) supplies this layer's concrete
-configuration.
+configuration. Every block is proved directly in the enclosing program. `CodeAt program initial.pc block`
+states that the block occurs at the current PC; the loop is constructed with
+that PC as its entry offset. The contracts record actual PC progress along with
+the computed values and preserved state.
 
 | Block | Theorem | File | What it establishes |
 | --- | --- | --- | --- |
@@ -288,12 +291,7 @@ Finally, [SequentialBridge.lean](ReluLayer/SequentialBridge.lean) identifies the
 real target with the Sequential output and proves the main theorem.
 
 The main proof needs no output-separation assumption for one thread: its only
-store follows every input read, so its output may alias an input word. Optional
-launch-level separation contracts live in
-[Optional/Separation.lean](ReluLayer/PTX/Optional/Separation.lean). Optional
-nonwrapping natural-address results live in
-[Optional/AddressBounds.lean](ReluLayer/PTX/Optional/AddressBounds.lean). Both
-modules are outside the main import chain.
+store follows every input read, so its output may alias an input word.
 
 ## Build and checks
 
@@ -304,7 +302,8 @@ main theorem with one command from the repository root:
 python3 scripts/check_main_theorem.py
 ```
 
-The script prepares the pinned dependencies, builds
-`ReluLayer.SequentialBridge` and its proof dependencies, and runs the
-Sequential bridge checks, including printing the main theorem's axioms.
+The script prepares the pinned dependencies, builds the proofs, and runs three
+check groups: kernel instructions/execution and the complete PTX source,
+FP32 arithmetic/decoding/error probes, and the Sequential bridge. The checks
+also print theorem axiom audits, including the main theorem's axioms.
 The project uses Lean 4.35.0-rc4. No CUDA toolkit or GPU is required.

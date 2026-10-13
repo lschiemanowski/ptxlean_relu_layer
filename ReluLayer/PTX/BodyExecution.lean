@@ -6,58 +6,47 @@ namespace ReluLayer.PTX
 variable {layout : Layout} {rows : Nat}
 
 /-- Block four: initialized dot loop followed by bias/ReLU/store/return. -/
-def bodyProgram (width : Nat) : List (Instruction Register) := dotLoop width ++ reluSuffix
+def bodyProgram (width start : Nat) : List (Instruction Register) :=
+  dotLoop width start ++ reluSuffix
 
 def bodySteps (width : Nat) : Nat := dotLoopStart + dotIterationSteps * width + reluSuffix.length
 
 /-- The complete computational block returns with the specified output and preserved frame. -/
 structure BodyResult (ops : FP32.Arithmetic) (data : TensorData layout rows)
     (buffers : Buffers) (i : Fin rows) (initial final : State Register) : Prop where
-  pc : final.pc = (bodyProgram layout.inputWidth).length
   returned : final.returned = true
-  column : final.regs .column = BitVec.ofNat 32 layout.inputWidth
   result : final.regs .result = rowResult ops data i
   memory : OutputStored ops data buffers i initial.globalMemory final.globalMemory
-  other32 : ∀ r, r ≠ .column → r ≠ .weightValue → r ≠ .inputValue →
-    r ≠ .accumulator → r ≠ .biasValue → r ≠ .result → final.regs r = initial.regs r
-  other64 : ∀ r, r ≠ .weightRead → r ≠ .inputRead → final.regs64 r = initial.regs64 r
-  otherPredicates : ∀ r, r ≠ .more → final.predicates r = initial.predicates r
 
 /-- Actual concatenated-program execution, reusing the loop and suffix theorems. -/
-theorem body_correct (ctx : ExecutionContext) (data : TensorData layout rows)
+theorem body_correct (program : List (Instruction Register)) (ctx : ExecutionContext) (data : TensorData layout rows)
     (buffers : Buffers) (i : Fin rows) (initial : State Register)
-    (hentry : BodyEntry layout rows buffers data i initial) :
-    ∃ final, run (bodyProgram layout.inputWidth) ctx (bodySteps layout.inputWidth) initial = some
+    (hentry : BodyEntry layout rows buffers data i initial)
+    (hcode : CodeAt program initial.pc (bodyProgram layout.inputWidth initial.pc)) :
+    ∃ final, run program ctx (bodySteps layout.inputWidth) initial = some
         final ∧ BodyResult ctx.ops data buffers i initial final := by
   obtain ⟨middle, hloop, hinv⟩ :=
-    dotLoop_correct ctx data buffers i initial hentry
+    dotLoop_correct program ctx data buffers i initial hentry hcode.left
   have hb : middle.regs64 .biasRead = elementAddress buffers .bias i.val :=
     (hinv.other64 .biasRead (by decide) (by decide)).trans hentry.biasRead
   have hy : middle.regs64 .outputWrite = elementAddress buffers .output i.val :=
     (hinv.other64 .outputWrite (by decide) (by decide)).trans hentry.outputWrite
-  have hsuffix : SuffixEntry ctx.ops data buffers i middle (dotLoop layout.inputWidth).length := by
-    refine ⟨?_, hinv.active, hinv.accumulator, hb, ?_, hy⟩
-    · simpa [dotLoopExit, dotLoop] using hinv.pc
-    · rw [hinv.memory]; exact hentry.inputs.bias i
-  obtain ⟨final, hs, hr⟩ := reluSuffix_correct_at (dotLoop layout.inputWidth)
-    ctx data buffers i middle hsuffix
-  have hl := run_append_of_run (dotLoop layout.inputWidth) reluSuffix ctx (dotLoopStart +
-      dotIterationSteps * layout.inputWidth) initial middle hloop
+  have hsuffix : SuffixEntry ctx.ops data buffers i middle := by
+    refine ⟨hinv.active, hinv.accumulator, hb, ?_, hy⟩
+    rw [hinv.memory]; exact hentry.inputs.bias i
+  have hpc : middle.pc = initial.pc + (dotLoop layout.inputWidth initial.pc).length := by
+    simpa [dotLoopExit, dotLoop] using hinv.pc
+  have hsuffixCode : CodeAt program middle.pc reluSuffix := by
+    rw [hpc]
+    exact hcode.right
+  obtain ⟨final, hs, hr⟩ := reluSuffix_correct program ctx data buffers i middle hsuffix hsuffixCode
   refine ⟨final, ?_, ?_⟩
-  · unfold bodyProgram bodySteps
-    rw [run_add, hl]
+  · unfold bodySteps
+    rw [run_add, hloop]
     exact hs
   · constructor
-    · simpa [bodyProgram] using hr.pc
     · exact hr.returned
-    · exact (hr.other32 .column (by decide) (by decide) (by decide)).trans hinv.column
     · exact hr.result
     · simpa only [hinv.memory] using hr.memory
-    · intro r hc hw hx ha hb hresult
-      exact (hr.other32 r hb ha hresult).trans (hinv.other32 r hc hw hx ha)
-    · intro r hw hx
-      rw [hr.regs64]; exact hinv.other64 r hw hx
-    · intro r hmore
-      rw [hr.predicates]; exact hinv.otherPredicates r hmore
 
 end ReluLayer.PTX

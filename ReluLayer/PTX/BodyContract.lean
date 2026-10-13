@@ -26,14 +26,12 @@ def preactivation (ops : FP32.Arithmetic) (data : TensorData layout rows)
 def rowResult (ops : FP32.Arithmetic) (data : TensorData layout rows) (i : Fin rows) : FP32.Bits :=
   FP32.maxPositiveZero (preactivation ops data i)
 
-/-- Entry to the independent fragment at PTX line 43; scratch contents are unrestricted. -/
+/-- Entry to the computation at PTX line 43; scratch contents and PC are unrestricted. -/
 structure BodyEntry (layout : Layout) (rows : Nat)
     (buffers : Buffers) (data : TensorData layout rows)
     (i : Fin rows) (initial : State Register) : Prop where
   inputs : InputsStored layout rows buffers data initial.globalMemory
-  pc : initial.pc = 0
   active : initial.returned = false
-  row : (initial.regs .row).toNat = i.val
   weightRead : initial.regs64 .weightRead = weightAddress layout buffers i.val 0
   inputRead : initial.regs64 .inputRead = buffers .input
   biasRead : initial.regs64 .biasRead = elementAddress buffers .bias i.val

@@ -5,7 +5,7 @@ accumulator, take the maximum with positive zero, store one output word, and
 return from the kernel entry thread. This is PTX lines 58–62, separate from
 the dot-product loop.
 
-The entry contract requires an active thread, fragment-relative PC zero, the
+The entry contract requires an active thread and the
 completed ordered dot-product accumulator, the supplied bias word at the bias
 pointer, and the output pointer for the same row. Initial bias/result scratch
 registers and output contents are unrestricted. Dimensions come from the tensor
@@ -36,7 +36,7 @@ inputs/other outputs, negative and NaN preactivation, positive infinity and
 subnormals, and return with a valid instruction still present afterward.
 Arithmetic fixtures are explicitly artificial operation parameters.
 
-The same suffix theorem also runs at the offset immediately after any supplied
-instruction prefix, without executing that prefix or resetting the PC. Its
-standalone version specializes to an empty prefix and entry PC zero. This offset
-form allows the complete block theorem to use the existing suffix proof.
+The suffix executes in an enclosing program whose instructions at the current
+PC satisfy `CodeAt`. Its entry contract specifies the completed accumulator
+and pointers without fixing a fragment-relative PC. Its exit PC is the entry
+PC plus the suffix length.

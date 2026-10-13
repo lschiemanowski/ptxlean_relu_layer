@@ -19,10 +19,6 @@ is updated, and every other address keeps its initial contents. Read-only
 inputs may overlap when their specified values agree. No initial contents are
 required for a separate output location.
 
-`OutputsSeparated`, in the optional separation module, is a launch-level contract excluding output/input
-and output/output overlap. It is retained for composing different threads,
-and is not a hypothesis of the single-thread theorem.
-
 The ordered result starts from positive zero and recursively applies an FMA over columns
 `0` through `n - 1`, then performs one bias addition and a maximum with positive
 zero. The prefix accumulator records the same recurrence over the first `k` columns.
@@ -47,34 +43,37 @@ to positive zero, preserves positive infinity and positive subnormal values,
 and leaves positive zero unchanged. This follows the selected unmodified
 [`max.f32` rule](https://docs.nvidia.com/cuda/archive/12.0.1/parallel-thread-execution/index.html#floating-point-instructions-max).
 
-The entry contract combines the supplied input words, the
-selected row register, and the four actual read/write pointers. Scratch register
-contents are unrestricted. The thread is active, and its PC is relative to this
-independent fragment, starting at zero.
+The entry contract combines the supplied input words and the four actual
+read/write pointers for the selected tensor row. The row register is
+unrestricted: the computation uses the pointers and never reads that register. Scratch register
+contents and entry PC are unrestricted. The thread is active. The execution
+theorem separately requires `CodeAt` for the complete computation at that PC,
+with the loop branch already targeting its actual iteration entry.
 
 The memory result requires output location `i` to contain the ordered result,
 with every other word location unchanged. The complete block theorem connects
 this postcondition to actual execution of initialization, the dot-product loop,
 and the bias/ReLU/store/return suffix. It proves the thread returns with the
-result register containing `rowResult` and the counter at the input width.
+result register containing `rowResult`. The loop theorem separately records
+the completed counter and pointer progress.
 
 Finite fixtures exercise multiple rows and columns, uninitialized output,
-rejection of missing or incorrect input words and output aliasing, and
-preservation of input words and other output locations. Artificial arithmetic
+rejection of missing or incorrect input words, successful output/bias aliasing,
+and preservation of every address other than the selected output. Artificial arithmetic
 operations check column order and accumulator placement without pretending to
 implement FP32 FMA or addition. Bit-pattern cases cover NaNs, infinities, signed
 zeros, and subnormal values in the maximum.
 
-The complete program appends the suffix to the initialized loop. Successful
-loop execution is unchanged by the appended instructions; its final PC points
-to the suffix. The suffix theorem applies at that offset, using the loop's
+The complete program appends the suffix to the initialized loop. Both theorems
+execute in the same enclosing program; the loop's final PC points to the suffix.
+The suffix theorem applies at that offset, using the loop's
 completed accumulator, unchanged input memory, and preserved bias/output
 pointers. The combined instruction count is `2 + 8 * inputWidth + 5`.
 
-The block's result preserves every other memory location and every register
-outside the loop/suffix destinations. Only the two read pointers advance; all
-other 64-bit registers remain unchanged. The proof reuses the loop and suffix
-execution theorems. The whole-kernel theorem composes this result with the three setup blocks.
+The block's public result records return, the result register, and the stored
+output with every other memory location preserved. Register and PC facts stay
+in the loop and suffix contracts where they support their handoff. The proof
+reuses those execution theorems. The whole-kernel theorem composes this result with the three setup blocks.
 The concrete FloatLib instance agrees with its reference arithmetic. The
 finite-row bound connects its result to the actual real-valued Sequential
 forward coordinate on decoded inputs. PTX arithmetic correspondence remains

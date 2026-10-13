@@ -18,11 +18,12 @@ instruction descriptions.
 The launch configuration supplies positive block and thread counts. A thread's
 block index is below the block count and its local thread index is below the
 thread count. The row-selection program uses the configured thread count as
-its multiply-add immediate. It starts at fragment-relative program counter
-zero, after the kernel's pointer-loading and conversion instructions.
+its multiply-add immediate. It can start at any program counter where the enclosing program contains
+these three instructions. In the kernel, this is immediately after the
+pointer-loading and conversion instructions.
 
 For any initial register contents, executing the three instructions succeeds,
-leaves the program counter at three, and writes the row register. When the
+advances the program counter by three, and writes the row register. When the
 total thread count is at most `2^32`, its unsigned value is
 
 $$
@@ -43,8 +44,9 @@ rendered formal instructions and configured launch against the PTX file; the
 comparison is an executable check, rather than a proved PTX parser.
 
 One state-form theorem accepts arbitrary initial scratch registers and
-predicates, an active thread at PC zero, and arbitrary arithmetic operation
-context. The context identity equals the selected thread identity. It preserves 64-bit registers, memory, predicates, and active status
+predicates, an active thread, and an enclosing program containing the block at
+the initial PC. `CodeAt` records this instruction-placement condition. The
+context identity equals the selected thread identity. It preserves 64-bit registers, memory, predicates, and active status
 while computing the same owned row. Its named `RowResult` contract records
 these facts; `Thread.rowIndex` packages the natural row with its range proof.
 The concrete launch and layout are defined together in `Layer.lean`; its output
