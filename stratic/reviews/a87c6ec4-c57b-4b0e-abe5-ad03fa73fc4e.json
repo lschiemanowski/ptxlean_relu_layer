@@ -1,0 +1,109 @@
+{
+  "id": "a87c6ec4-c57b-4b0e-abe5-ad03fa73fc4e",
+  "base": "c7c5371f8a3ff042463a6d85005215faf869adad",
+  "contentTree": "35f006b790286f9a6760dc45dd4f196dcc56ca9a",
+  "reviewer": "Codex",
+  "summary": "Use exact state equations for all four straight-line PTX blocks and preserve the numerical Sequential guarantee",
+  "examined": [
+    {
+      "id": "row-selection",
+      "outcome": "revised",
+      "reason": "Promoted the existing exact three-write state to public rowSelected and replaced the existential RowResult interface by an execution equation. Removed RowResult. Moved the launch-size hypothesis into rowSelected_row, which retains the previous mathematical nonwrapping fact. All frame facts follow from the same unchanged writes; execution is valid even for non-fitting launch sizes. Generic standalone/enclosing-program checks and an oversized-launch wrapping/frame fixture cover the new split."
+    },
+    {
+      "id": "kernel-execution",
+      "outcome": "revised",
+      "reason": "Composes explicit basesLoaded, rowSelected and addressesComputed states with run_add, then the invariant-based dot loop and exact reluStored suffix through the compact BodyResult. Address pointers use direct expressions and the original wideProduct/row interpretation; all memory/active fields are inherited. BodyResult/body_correct, KernelEntry/KernelResult/kernel_correct statement, numerical definitions and public Sequential theorem remain unchanged. Raw size improves modestly; clearer statements and removal of duplicate result structures are the primary benefit."
+    },
+    {
+      "id": "ptx-kernel",
+      "outcome": "unchanged",
+      "reason": "The actual PTX source, all instruction generators, launch, parameter conversions, tensor memory hypotheses and the conditional per-thread numerical Sequential guarantee are unchanged. All four straight-line blocks now use exact exit-state equations; the loop retains its invariant and the suffix separately states the semantic result and output frame. No concurrency, CUDA-memory or hardware claim is added."
+    },
+    {
+      "id": "address-calculation",
+      "outcome": "revised",
+      "reason": "Removed AddressWords and exposed addressesComputed, specifying both modular offsets and three pointers with PC advance and inherited fields. addressCalculation_exec now proves exact execution equals that state under unchanged active/CodeAt hypotheses. Kernel composition interprets its explicit pointer expressions using the original fitting-row/stride facts. All actual wraparound, near-boundary, alias, wide multiply and arbitrary-placement cases remain; the generic check is restated as an exact state equation."
+    },
+    {
+      "id": "base-loading",
+      "outcome": "revised",
+      "reason": "Replaced BaseResult and the private eight-write final state by public basesLoaded, depending only on converted buffers and initial state. The effect directly sets four 64-bit targets and advances PC by the actual block length; all other fields are inherited. baseLoading_correct states exact successful execution under unchanged parameter/conversion/active/placement hypotheses. Removed the now-unused Argument.register mapping. Existing converter failure, nonidentity conversion, aliasing, frame and arbitrary-prefix execution probes remain; two theorem examples now assert the exact state."
+    },
+    {
+      "id": "body-contract",
+      "outcome": "unchanged",
+      "reason": "Read the linked block source and consolidated check passage. They are byte-identical to baseline c7c5371; the checker file changes only in its row section. Existing modular pointers, word inputs, block execution, memory and register facts remain unchanged."
+    },
+    {
+      "id": "dot-loop",
+      "outcome": "unchanged",
+      "reason": "Read the linked block source and consolidated check passage. They are byte-identical to baseline c7c5371; the checker file changes only in its row section. Existing modular pointers, word inputs, block execution, memory and register facts remain unchanged."
+    },
+    {
+      "id": "relu-suffix",
+      "outcome": "revised",
+      "reason": "Removed SuffixResult and exposed reluStored, specifying bias/add/max/store/PC/return exactly. Execution is an equality under unchanged SuffixEntry/CodeAt. Named reluStored_result and reluStored_output lemmas retain the row-result, selected store and every-other-address frame guarantees. Body composition consumes the equation and these semantic lemmas. Existing exceptional-word, scratch, memory, uninitialized output, arbitrary offset, missing-bias and post-return cases remain; added separate result/output lemma audits and examples."
+    }
+  ],
+  "unresolved": [],
+  "results": [
+    {
+      "tree": "35f006b790286f9a6760dc45dd4f196dcc56ca9a",
+      "method": "python3 scripts/check_main_theorem.py; frozen instruction-list, entry/result/header and other-source comparisons; public axiom comparison; Lean-parser proof-span LOC tally; git diff --check; stratic validate",
+      "outcome": "pass",
+      "environment": "Lean 4.35.0-rc4; pinned dependencies with existing compatibility patches and warnings; committed baseline c7c5371; selected abstract per-thread word-memory model",
+      "evidence": "Full main bridge build and all three kernel/numerical/Sequential groups exit zero. All four straight-line blocks now have public exact effect functions and execution equations: basesLoaded, rowSelected, addressesComputed and reluStored. BaseResult/RowResult/AddressWords/SuffixResult removed; the dot loop retains its invariant. rowSelected_row retains the original fitting-launch row fact; reluStored_result and reluStored_output retain the ordered result, selected store and every-other-address frame. BodyResult/body_correct and KernelEntry/KernelResult/kernel_correct statements are unchanged, as are SuffixEntry, numerical definitions, headline theorem, all instruction generators and PTX source. Actual missing-input/conversion, alias, wraparound, frame, arbitrary-placement, full-width, source/header and numerical probes pass; generic block theorem examples now use exact state equations and new semantic suffix lemmas are separately audited/exercised. Main axiom audit matches c7c5371. Lean-parser tally: library 1554 physical lines, 1112 excluding proof bodies; checks 984/886; total Lean 2538/1998. Comments and blank lines included, dependencies excluded, theorem statements/computational definitions retained. Library decreases 53 total/35 non-proof lines against c7c5371. Stratic exact links/summaries and whitespace validate; snapshots match.",
+      "tests": [],
+      "id": "b6937abe-31c1-4413-85e1-62e4f34b2ef9",
+      "recordedAt": "2026-10-13T18:25:10.313Z"
+    }
+  ],
+  "recordedAt": "2026-10-13T18:25:19.594Z",
+  "unmapped": [
+    {
+      "path": "README.md",
+      "reason": "Reviewed all block theorem table entries and the four state-function explanation, keeping actual PTX walkthrough, loop invariant, compact body result, single verification command and unchanged headline theorem."
+    },
+    {
+      "path": "stratic/descriptions/address-calculation.json",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    },
+    {
+      "path": "stratic/descriptions/address-calculation.md",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    },
+    {
+      "path": "stratic/descriptions/base-loading.json",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    },
+    {
+      "path": "stratic/descriptions/base-loading.md",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    },
+    {
+      "path": "stratic/descriptions/kernel-execution.json",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    },
+    {
+      "path": "stratic/descriptions/kernel-execution.md",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    },
+    {
+      "path": "stratic/descriptions/relu-suffix.json",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    },
+    {
+      "path": "stratic/descriptions/relu-suffix.md",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.json",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    },
+    {
+      "path": "stratic/descriptions/row-selection.md",
+      "reason": "Reviewed exact complete source/check passages and accurate nonempty summaries for the state-equation interfaces. Outcome and semantic guarantees remain unchanged; result/frame claims are now separate from exact execution."
+    }
+  ]
+}

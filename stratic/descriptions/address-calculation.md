@@ -44,3 +44,10 @@ The word-level exit contract also preserves predicates and active status.
 Its execution theorem accepts a required execution context; this block does
 not use the context's arithmetic.
 Whole-kernel composition uses the modular word pointer equations directly.
+
+The public `addressesComputed width initial` state specifies both offsets and
+the three resulting pointers, with PC advance and every unchanged field.
+`addressCalculation_exec` states that execution equals this explicit state.
+The offsets and additions remain word arithmetic, including wraparound; kernel
+composition separately uses the fitting launch and stride to identify the
+selected tensor addresses.

@@ -39,14 +39,15 @@ theorem body_correct (program : List (Instruction Register)) (ctx : ExecutionCon
   have hsuffixCode : CodeAt program middle.pc reluSuffix := by
     rw [hpc]
     exact hcode.right
-  obtain ⟨final, hs, hr⟩ := reluSuffix_correct program ctx data buffers i middle hsuffix hsuffixCode
+  let final := reluStored ctx.ops (data.bias i) middle
+  have hs := reluSuffix_correct program ctx data buffers i middle hsuffix hsuffixCode
   refine ⟨final, ?_, ?_⟩
   · unfold bodySteps
     rw [run_add, hloop]
     exact hs
   · constructor
-    · exact hr.returned
-    · exact hr.result
-    · simpa only [hinv.memory] using hr.memory
+    · rfl
+    · exact reluStored_result ctx.ops data buffers i middle hsuffix
+    · simpa only [hinv.memory] using reluStored_output ctx.ops data buffers i middle hsuffix
 
 end ReluLayer.PTX

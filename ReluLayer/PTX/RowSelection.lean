@@ -42,48 +42,34 @@ def rowSelection (threads : Nat) : List (Instruction Register) :=
     .mov .block .ctaidX,
     .madLo .row (.reg .block) (.imm (BitVec.ofNat 32 threads)) (.reg .thread) ]
 
-private def finalState (cfg : Launch) (t : Thread cfg) (initial : State Register) : State
+/-- Exact state after the two identity loads and modular row multiply-add. -/
+def rowSelected (t : Thread cfg) (initial : State Register) : State
     Register :=
   let s := initial.writeNext .thread t.identity.tidX
   let s := s.writeNext .block t.identity.ctaidX
   s.writeNext .row (s.regs .block * BitVec.ofNat 32 cfg.threads + s.regs .thread)
 
-/-- The selected row and the state preserved by the three-instruction block. -/
-structure RowResult (cfg : Launch) (t : Thread cfg) (initial final : State Register) : Prop where
-  pc : final.pc = initial.pc + (rowSelection cfg.threads).length
-  row : (final.regs .row).toNat = t.row
-  regs64 : final.regs64 = initial.regs64
-  memory : final.globalMemory = initial.globalMemory
-  predicates : final.predicates = initial.predicates
-  active : final.returned = initial.returned
-  other32 : ∀ r, r ≠ .thread → r ≠ .block → r ≠ .row → final.regs r = initial.regs r
+/-- A fitting launch makes the computed word equal to the mathematical owned row. -/
+theorem rowSelected_row (t : Thread cfg) (initial : State Register)
+    (hfit : cfg.rows ≤ 2 ^ 32) : ((rowSelected t initial).regs .row).toNat = t.row := by
+  simp only [rowSelected, State.writeNext, Thread.identity,
+    reduceCtorEq, ↓reduceIte, BitVec.ofNat_mul_ofNat,
+    BitVec.ofNat_add_ofNat, BitVec.toNat_ofNat]
+  rw [Nat.mul_comm t.block.val cfg.threads]
+  exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le t.row_lt hfit)
 
-/-- Arbitrary scratch values are allowed; a fitting launch computes the owned row without wrap. -/
+/-- Execute the three placed instructions and return their exact state, with arbitrary scratch. -/
 theorem rowSelection_correct (program : List (Instruction Register))
-    (cfg : Launch) (hfit : cfg.rows ≤ 2 ^ 32) (t : Thread cfg) (initial : State Register)
+    (cfg : Launch) (t : Thread cfg) (initial : State Register)
     (hactive : initial.returned = false) (ctx : ExecutionContext)
     (hid : ctx.id = t.identity) (hcode : CodeAt program initial.pc (rowSelection cfg.threads)) :
-    ∃ final, run program ctx (rowSelection cfg.threads).length
-        initial = some final ∧ RowResult cfg t initial final := by
+    run program ctx (rowSelection cfg.threads).length initial =
+      some (rowSelected t initial) := by
   have h₀ := hcode 0 (by simp [rowSelection])
   have h₁ := hcode 1 (by simp [rowSelection])
   have h₂ := hcode 2 (by simp [rowSelection])
   simp [rowSelection] at h₀ h₁ h₂
-  refine ⟨finalState cfg t initial, ?_, ?_⟩
-  · simp [run, step, rowSelection, h₀, h₁, h₂, Instruction.execute, Operand.read,
-      State.writeNext, finalState, hactive, hid, Nat.add_assoc]
-  · constructor
-    · simp [finalState, State.writeNext, rowSelection, Nat.add_assoc]
-    · simp only [finalState, State.writeNext, Thread.identity,
-        reduceCtorEq, ↓reduceIte, BitVec.ofNat_mul_ofNat,
-        BitVec.ofNat_add_ofNat, BitVec.toNat_ofNat]
-      rw [Nat.mul_comm t.block.val cfg.threads]
-      exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le t.row_lt hfit)
-    · rfl
-    · rfl
-    · rfl
-    · rfl
-    · intro r ht hb hr
-      simp [finalState, State.writeNext, ht, hb, hr]
+  simp [run, step, rowSelection, h₀, h₁, h₂, Instruction.execute, Operand.read,
+    State.writeNext, rowSelected, hactive, hid, Nat.add_assoc]
 
 end ReluLayer.PTX

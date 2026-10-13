@@ -29,24 +29,29 @@ example : ¬ Returns [] ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ alia
   intro h
   exact Bool.noConfusion h.2
 
--- The state contract specializes to a different launch with arbitrary scratch.
+-- Exact execution specializes to a different launch with arbitrary scratch.
 example (t : Thread ⟨7, 5, by decide, by decide⟩) (initial : State Register)
     (hpc : initial.pc = 0) (hactive : initial.returned = false) (env : Environment) :
-    ∃ final, run (rowSelection 5) ⟨t.identity, env, testArithmetic⟩ 3 initial = some final ∧
-      RowResult ⟨7, 5, by decide, by decide⟩ t initial final :=
-  rowSelection_correct (rowSelection 5) _ (by decide) t initial hactive
+    run (rowSelection 5) ⟨t.identity, env, testArithmetic⟩ 3 initial =
+      some (rowSelected t initial) :=
+  rowSelection_correct (rowSelection 5) _ t initial hactive
     ⟨t.identity, env, testArithmetic⟩ rfl (by
       rw [hpc]
       simpa using codeAt_append [] (rowSelection 5) [])
 
--- The same contract works inside arbitrary enclosing code at a nonzero PC.
+-- The same equation works inside arbitrary enclosing code at a nonzero PC.
 example (pre post : List (Instruction Register)) (t : Thread ⟨7, 5, by decide, by decide⟩)
     (initial : State Register) (hpc : initial.pc = pre.length)
     (hactive : initial.returned = false) (env : Environment) :
-    ∃ final, run (pre ++ rowSelection 5 ++ post) ⟨t.identity, env, testArithmetic⟩ 3 initial =
-        some final ∧ RowResult ⟨7, 5, by decide, by decide⟩ t initial final :=
-  rowSelection_correct _ _ (by decide) t initial hactive ⟨t.identity, env, testArithmetic⟩ rfl
+    run (pre ++ rowSelection 5 ++ post) ⟨t.identity, env, testArithmetic⟩ 3 initial =
+      some (rowSelected t initial) :=
+  rowSelection_correct _ _ t initial hactive ⟨t.identity, env, testArithmetic⟩ rfl
     (by rw [hpc]; exact codeAt_append pre (rowSelection 5) post)
+
+-- The natural row equation is a separate fact requiring a fitting launch.
+example (cfg : Launch) (t : Thread cfg) (initial : State Register)
+    (hfit : cfg.rows ≤ 2 ^ 32) : ((rowSelected t initial).regs .row).toNat = t.row :=
+  rowSelected_row t initial hfit
 
 -- Neither a return in the prefix nor a row overwrite in the suffix is executed.
 private def offsetThread : Thread ⟨7, 5, by decide, by decide⟩ := ⟨2, 3⟩
@@ -58,7 +63,21 @@ private def enclosingProgram : List (Instruction Register) :=
 example : (run enclosingProgram ⟨offsetThread.identity, Environment.empty, testArithmetic⟩ 3
     offsetInitial).map (fun s => (s.pc, (s.regs .row).toNat)) = some (4, 13) := by decide
 
+-- Execution and frame remain exact even when the mathematical row wraps.
+private def wideLaunch : Launch := ⟨2 ^ 32 + 1, 1, by decide, by decide⟩
+private def wideThread : Thread wideLaunch := ⟨⟨2 ^ 32, by decide⟩, ⟨0, by decide⟩⟩
+example : (run ([.ret] ++ rowSelection 1) ⟨wideThread.identity, Environment.empty, testArithmetic⟩ 3
+    offsetInitial).map (fun final => ((final.regs .row).toNat,
+      (final.regs64 .weightBase).toNat, final.globalMemory 0, final.predicates .more)) =
+    some (0, 42, some 9, true) := by decide
+example : run ([.ret] ++ rowSelection 1) ⟨wideThread.identity, Environment.empty, testArithmetic⟩ 3
+    offsetInitial = some (rowSelected wideThread offsetInitial) := by
+  exact rowSelection_correct _ _ wideThread offsetInitial rfl _ rfl (by
+    simpa [offsetInitial, rowSelection, wideLaunch] using
+      codeAt_append [.ret] (rowSelection 1) [])
+
 #print axioms Thread.row_lt
+#print axioms rowSelected_row
 #print axioms rowSelection_correct
 #print axioms codeAt_append
 #print axioms layerLaunch_rows
@@ -94,8 +113,8 @@ example : ((run baseLoading ⟨⟨0, 0⟩, env, testArithmetic⟩ 8 initial).map
       (s.regs64 .biasBase).toNat, (s.regs64 .outputBase).toNat))) =
     some (24, 40, 64, 80) := by decide
 
-example : ∃ final, run baseLoading ⟨⟨0, 0⟩, env, testArithmetic⟩ 8 initial = some final ∧
-    BaseResult buffers initial final :=
+example : run baseLoading ⟨⟨0, 0⟩, env, testArithmetic⟩ 8 initial =
+    some (basesLoaded buffers initial) :=
   baseLoading_correct baseLoading ⟨⟨0, 0⟩, env, testArithmetic⟩ args buffers initial (by decide)
     (fun arg => by cases arg <;> decide) (fun arg => by cases arg <;> decide)
     (by simpa [initial] using codeAt_append [] baseLoading [])
@@ -120,9 +139,9 @@ example : ((run baseLoading ⟨⟨0, 0⟩, env, testArithmetic⟩ 8 initial).map
 
 -- Base loading has the same contract after any skipped prefix and before any suffix.
 example (pre post : List (Instruction Register)) :
-    ∃ final, run (pre ++ baseLoading ++ post) ⟨⟨0, 0⟩, env, testArithmetic⟩ baseLoading.length
-        { initial with pc := pre.length } = some final ∧
-      BaseResult buffers { initial with pc := pre.length } final :=
+    run (pre ++ baseLoading ++ post) ⟨⟨0, 0⟩, env, testArithmetic⟩ baseLoading.length
+        { initial with pc := pre.length } =
+      some (basesLoaded buffers { initial with pc := pre.length }) :=
   baseLoading_correct _ ⟨⟨0, 0⟩, env, testArithmetic⟩ args buffers
     { initial with pc := pre.length } (by rfl)
     (fun arg => by cases arg <;> decide) (fun arg => by cases arg <;> decide)
@@ -187,8 +206,8 @@ example : ((run (addressCalculation 1) ⟨⟨0, 0⟩, Environment.empty, testAri
 example (pre post : List (Instruction Register)) (width : Nat) (ctx : ExecutionContext)
     (initial : State Register) (hpc : initial.pc = pre.length)
     (hactive : initial.returned = false) :
-    ∃ final, run (pre ++ addressCalculation width ++ post) ctx
-        (addressCalculation width).length initial = some final ∧ AddressWords width initial final :=
+    run (pre ++ addressCalculation width ++ post) ctx
+        (addressCalculation width).length initial = some (addressesComputed width initial) :=
   addressCalculation_exec _ width ctx initial hactive (by
     rw [hpc]
     exact codeAt_append pre (addressCalculation width) post)
@@ -370,10 +389,16 @@ example : executedSuffix.map (fun s => ((s.regs64 .biasRead).toNat, (s.regs64 .o
 example : executedSuffix.bind (fun s => s.globalMemory 28) = some 8 := by decide
 example : executedSuffix.bind (fun s => s.globalMemory 32) = some 0x3f800000 := by decide
 example : executedSuffix.map (fun s => s.predicates .more) = some true := by decide
-example : ∃ final, run reluSuffix ⟨⟨0, 0⟩, Environment.empty, ops⟩ 5 suffixState = some final ∧
-    SuffixResult ops data buffers 1 suffixState final :=
+example : run reluSuffix ⟨⟨0, 0⟩, Environment.empty, ops⟩ 5 suffixState =
+    some (reluStored ops (data.bias 1) suffixState) :=
   reluSuffix_correct reluSuffix ⟨⟨0, 0⟩, Environment.empty, ops⟩ data buffers 1 suffixState suffixStateEntry
     (by simpa [suffixState] using codeAt_append [] reluSuffix [])
+
+example : (reluStored ops (data.bias 1) suffixState).regs .result = rowResult ops data 1 :=
+  reluStored_result ops data buffers 1 suffixState suffixStateEntry
+example : OutputStored ops data buffers 1 suffixState.globalMemory
+    (reluStored ops (data.bias 1) suffixState).globalMemory :=
+  reluStored_output ops data buffers 1 suffixState suffixStateEntry
 
 -- Feed chosen preactivation patterns through the actual max/store/return sequence.
 private def preactivationOps (v : Word32) : FP32.Arithmetic := ⟨fun _ _ a => a, fun _ _ => v⟩
@@ -399,6 +424,8 @@ example : ((run afterRet ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ 1 s
 example : run afterRet ⟨⟨0, 0⟩, Environment.empty, testArithmetic⟩ 2 suffixState = none := by decide
 
 #print axioms reluSuffix_correct
+#print axioms reluStored_result
+#print axioms reluStored_output
 #print axioms step_after_return
 
 -- Loop/suffix composition, stale row scratch, and arbitrary enclosing code.
@@ -435,8 +462,8 @@ private def suffixInitial : State Register :=
   { initial with pc := prelude.length, regs := fun r => if r = .accumulator then 90 else initial.regs r }
 private theorem suffixEntry : SuffixEntry ops data buffers 1 suffixInitial := by
   constructor <;> decide
-example : ∃ final, run (prelude ++ reluSuffix) ⟨⟨0, 0⟩, Environment.empty, ops⟩ 5 suffixInitial = some final ∧
-    SuffixResult ops data buffers 1 suffixInitial final :=
+example : run (prelude ++ reluSuffix) ⟨⟨0, 0⟩, Environment.empty, ops⟩ 5 suffixInitial =
+    some (reluStored ops (data.bias 1) suffixInitial) :=
   reluSuffix_correct (prelude ++ reluSuffix) ⟨⟨0, 0⟩, Environment.empty, ops⟩
     data buffers 1 suffixInitial suffixEntry (by
       simpa [suffixInitial] using codeAt_append prelude reluSuffix [])

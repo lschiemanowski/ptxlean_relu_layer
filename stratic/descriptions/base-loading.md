@@ -48,3 +48,10 @@ block theorem.
 The exit contract also preserves the predicate bank and active status.
 The block accepts arbitrary arithmetic operation parameters because none of
 its instructions uses floating-point arithmetic.
+
+`baseLoading_correct` states an exact execution equation with the resulting
+state `basesLoaded buffers initial`. The effect depends only on the converted
+buffer addresses: the generic pointer words loaded earlier are overwritten.
+The state function updates the four target registers and advances the PC by
+the eight-instruction block length. Every other state field retains its
+initial value. Its equation replaces a separate result structure.

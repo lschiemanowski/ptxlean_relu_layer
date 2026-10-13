@@ -40,3 +40,10 @@ The suffix executes in an enclosing program whose instructions at the current
 PC satisfy `CodeAt`. Its entry contract specifies the completed accumulator
 and pointers without fixing a fragment-relative PC. Its exit PC is the entry
 PC plus the suffix length.
+
+`reluSuffix_correct` states an exact execution equation returning
+`reluStored ops bias initial`. This state specifies the loaded bias, rounded
+addition, result word, single store, PC advance, and returned flag.
+`reluStored_result` identifies the result register with the ordered row result;
+`reluStored_output` separately states the stored-output and every-other-address
+memory frame guarantee under the existing suffix entry contract.

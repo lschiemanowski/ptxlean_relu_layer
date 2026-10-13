@@ -21,52 +21,35 @@ def addressCalculation (inputWidth : Nat) : List (Instruction Register) :=
     .add64 .biasRead (.reg .biasBase) (.reg .elementOffset),
     .add64 .outputWrite (.reg .outputBase) (.reg .elementOffset) ]
 
-private def finalState (width : Nat) (initial : State Register) : State Register :=
-  let s := initial.write64Next .rowOffset
-    (wideProduct (initial.regs .row) (BitVec.ofNat 32 (width * fp32Bytes)))
-  let s := s.write64Next .elementOffset
-    (wideProduct (s.regs .row) (BitVec.ofNat 32 fp32Bytes))
-  let s := s.write64Next .weightRead (s.regs64 .weightBase + s.regs64 .rowOffset)
-  let s := s.write64Next .biasRead (s.regs64 .biasBase + s.regs64 .elementOffset)
-  s.write64Next .outputWrite (s.regs64 .outputBase + s.regs64 .elementOffset)
-
-/-- Word-level execution facts hold even when pointer addition wraps. -/
-structure AddressWords (width : Nat) (initial final : State Register) : Prop where
-  pc : final.pc = initial.pc + (addressCalculation width).length
-  regs32 : final.regs = initial.regs
-  memory : final.globalMemory = initial.globalMemory
-  predicates : final.predicates = initial.predicates
-  active : final.returned = initial.returned
-  inputRead : final.regs64 .inputRead = initial.regs64 .inputRead
-  weightBase : final.regs64 .weightBase = initial.regs64 .weightBase
-  biasBase : final.regs64 .biasBase = initial.regs64 .biasBase
-  outputBase : final.regs64 .outputBase = initial.regs64 .outputBase
-  rowOffset : final.regs64 .rowOffset =
-    wideProduct (initial.regs .row) (BitVec.ofNat 32 (width * fp32Bytes))
-  elementOffset : final.regs64 .elementOffset =
-    wideProduct (initial.regs .row) (BitVec.ofNat 32 fp32Bytes)
-  weights : final.regs64 .weightRead = initial.regs64 .weightBase +
-    wideProduct (initial.regs .row) (BitVec.ofNat 32 (width * fp32Bytes))
-  bias : final.regs64 .biasRead = initial.regs64 .biasBase +
-    wideProduct (initial.regs .row) (BitVec.ofNat 32 fp32Bytes)
-  output : final.regs64 .outputWrite = initial.regs64 .outputBase +
-    wideProduct (initial.regs .row) (BitVec.ofNat 32 fp32Bytes)
+/-- Exact modular offsets and pointers, preserving every other state field. -/
+def addressesComputed (width : Nat) (initial : State Register) : State Register :=
+  let rowOffset := wideProduct (initial.regs .row) (BitVec.ofNat 32 (width * fp32Bytes))
+  let elementOffset := wideProduct (initial.regs .row) (BitVec.ofNat 32 fp32Bytes)
+  { initial with
+    regs64 := fun r => match r with
+      | .rowOffset => rowOffset
+      | .elementOffset => elementOffset
+      | .weightRead => initial.regs64 .weightBase + rowOffset
+      | .biasRead => initial.regs64 .biasBase + elementOffset
+      | .outputWrite => initial.regs64 .outputBase + elementOffset
+      | _ => initial.regs64 r
+    pc := initial.pc + (addressCalculation width).length }
 
 theorem addressCalculation_exec (program : List (Instruction Register))
     (width : Nat) (ctx : ExecutionContext) (initial : State Register)
     (hactive : initial.returned = false)
     (hcode : CodeAt program initial.pc (addressCalculation width)) :
-    ∃ final, run program ctx (addressCalculation width).length initial = some final ∧
-      AddressWords width initial final := by
+    run program ctx (addressCalculation width).length initial =
+      some (addressesComputed width initial) := by
   have h₀ := hcode 0 (by simp [addressCalculation])
   have h₁ := hcode 1 (by simp [addressCalculation])
   have h₂ := hcode 2 (by simp [addressCalculation])
   have h₃ := hcode 3 (by simp [addressCalculation])
   have h₄ := hcode 4 (by simp [addressCalculation])
   simp [addressCalculation] at h₀ h₁ h₂ h₃ h₄
-  refine ⟨finalState width initial, ?_, ?_⟩
-  · simp [run, step, addressCalculation, h₀, h₁, h₂, h₃, h₄, Instruction.execute,
-      Operand.read, Operand64.read, State.write64Next, finalState, hactive, Nat.add_assoc]
-  · constructor <;> simp [finalState, State.write64Next, addressCalculation, Nat.add_assoc]
+  simp [run, step, addressCalculation, h₀, h₁, h₂, h₃, h₄, Instruction.execute,
+    Operand.read, Operand64.read, State.write64Next, addressesComputed, hactive, Nat.add_assoc]
+  funext r
+  cases r <;> rfl
 
 end ReluLayer.PTX

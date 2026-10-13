@@ -275,11 +275,17 @@ the computed values and preserved state.
 
 | Block | Theorem | File | What it establishes |
 | --- | --- | --- | --- |
-| 1. Base addresses | `baseLoading_correct` | [BaseLoading.lean](ReluLayer/PTX/BaseLoading.lean) | The four base registers contain the supplied converted global addresses; memory and unrelated state are preserved. |
-| 2. Row selection | `rowSelection_correct` | [RowSelection.lean](ReluLayer/PTX/RowSelection.lean) | The row register contains the thread's mathematical row, without 32-bit wrap for a fitting launch; unrelated state is preserved. |
-| 3. Data addresses | `addressCalculation_exec` | [AddressCalculation.lean](ReluLayer/PTX/AddressCalculation.lean) | The pointer registers contain the row, bias and output addresses computed by the word-level PTX arithmetic; memory is preserved. |
+| 1. Base addresses | `baseLoading_correct` | [BaseLoading.lean](ReluLayer/PTX/BaseLoading.lean) | Execution produces exactly `basesLoaded buffers initial`: four converted base registers, advanced PC, and every other field preserved. |
+| 2. Row selection | `rowSelection_correct`, `rowSelected_row` | [RowSelection.lean](ReluLayer/PTX/RowSelection.lean) | Execution produces exactly the three register updates in `rowSelected`; a fitting launch makes the row word equal the mathematical owned row. |
+| 3. Data addresses | `addressCalculation_exec` | [AddressCalculation.lean](ReluLayer/PTX/AddressCalculation.lean) | Execution produces exactly `addressesComputed width initial`, including the modular offsets, three pointers, and preserved state. |
 | 4a. Dot-product loop | `dotLoop_correct` | [DotLoop.lean](ReluLayer/PTX/DotLoop.lean) | The loop exits after the input width, with the accumulator equal to the ordered rounded FMA recurrence and memory preserved. |
-| 4b. Bias/ReLU/store suffix | `reluSuffix_correct` | [ReluSuffix.lean](ReluLayer/PTX/ReluSuffix.lean) | The completed accumulator is combined with bias and positive-zero maximum, the resulting word is stored, every other memory word is preserved, and the thread returns. |
+| 4b. Bias/ReLU/store suffix | `reluSuffix_correct`, `reluStored_result`, `reluStored_output` | [ReluSuffix.lean](ReluLayer/PTX/ReluSuffix.lean) | Execution produces exactly `reluStored`; the semantic lemmas identify the row result, its store and preserved memory frame. |
+
+The four straight-line blocks use exact state equations, with public state
+functions `basesLoaded`, `rowSelected`, `addressesComputed`, and `reluStored`.
+These functions specify updates and preserved fields together. Separate lemmas
+identify the mathematical row and the suffix's ordered result and stored output.
+The dot-product loop keeps its invariant to describe repeated execution.
 
 `body_correct` in [BodyExecution.lean](ReluLayer/PTX/BodyExecution.lean) combines
 4a and 4b. `kernel_correct` in

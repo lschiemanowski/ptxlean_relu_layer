@@ -29,6 +29,15 @@ instruction list is constructed with its actual entry offset, so its branch
 already targets the loop body in that program. Block boundaries do
 not reset the machine's PC or change registers or memory.
 
+The setup blocks return the explicit states `basesLoaded buffers initial`,
+`rowSelected t bases`, and `addressesComputed width rowFinal`. Their inherited
+fields give the memory and register handoffs directly. The separate row-value
+lemma applies the launch-size bound to identify the mathematical row used by
+address calculation. The dot loop keeps its invariant; its completed state
+feeds the suffix equation returning `reluStored`. Separate suffix lemmas
+identify the ordered row result and the single stored output with its memory
+frame. The compact complete-body result combines return, result and memory.
+
 This is an execution theorem for each thread in the abstract word-memory model,
 using supplied FMA and addition operations on binary32 bit patterns. It assumes
 valid word accesses and the input-value contract. A concrete FloatLib specialization supplies binary32 nearest-even addition and

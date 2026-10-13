@@ -10,9 +10,6 @@ inductive Argument where
 def Argument.symbol : Argument → String
   | .weights => "W_ptr" | .input => "x_ptr" | .bias => "b_ptr" | .output => "y_ptr"
 
-def Argument.register : Argument → Register
-  | .weights => .weightBase | .input => .inputRead | .bias => .biasBase | .output => .outputBase
-
 abbrev Buffers := Argument → Word64
 
 /-- Exactly the four parameter loads and four global conversions of the selected kernel. -/
@@ -24,27 +21,16 @@ def baseLoading : List (Instruction Register) :=
     .cvtaGlobal64 .biasBase (.reg .biasBase),
     .cvtaGlobal64 .outputBase (.reg .outputBase) ]
 
-private def finalState (args : Argument → Word64) (buffers : Buffers)
-    (initial : State Register) : State Register :=
-  let s := initial.write64Next .weightBase (args .weights)
-  let s := s.write64Next .inputRead (args .input)
-  let s := s.write64Next .biasBase (args .bias)
-  let s := s.write64Next .outputBase (args .output)
-  let s := s.write64Next .weightBase (buffers .weights)
-  let s := s.write64Next .inputRead (buffers .input)
-  let s := s.write64Next .biasBase (buffers .bias)
-  s.write64Next .outputBase (buffers .output)
-
-/-- Converted bases and the state preserved by the loading block. -/
-structure BaseResult (buffers : Buffers) (initial final : State Register) : Prop where
-  pc : final.pc = initial.pc + baseLoading.length
-  bases : ∀ arg, final.regs64 arg.register = buffers arg
-  regs32 : final.regs = initial.regs
-  other64 : ∀ r, r ≠ .weightBase → r ≠ .inputRead → r ≠ .biasBase → r ≠ .outputBase →
-    final.regs64 r = initial.regs64 r
-  memory : final.globalMemory = initial.globalMemory
-  predicates : final.predicates = initial.predicates
-  active : final.returned = initial.returned
+/-- Exact exit state: four converted bases, with every other field preserved. -/
+def basesLoaded (buffers : Buffers) (initial : State Register) : State Register :=
+  { initial with
+    regs64 := fun r => match r with
+      | .weightBase => buffers .weights
+      | .inputRead => buffers .input
+      | .biasBase => buffers .bias
+      | .outputBase => buffers .output
+      | _ => initial.regs64 r
+    pc := initial.pc + baseLoading.length }
 
 /-- The four supplied generic arguments must convert to the four supplied global buffers. -/
 theorem baseLoading_correct (program : List (Instruction Register)) (ctx : ExecutionContext)
@@ -53,8 +39,7 @@ theorem baseLoading_correct (program : List (Instruction Register)) (ctx : Execu
     (hparams : ∀ arg, ctx.env.params arg.symbol = some (args arg))
     (hconvert : ∀ arg, ctx.env.toGlobal (args arg) = some (buffers arg))
     (hcode : CodeAt program initial.pc baseLoading) :
-    ∃ final, run program ctx baseLoading.length initial = some final ∧
-      BaseResult buffers initial final := by
+    run program ctx baseLoading.length initial = some (basesLoaded buffers initial) := by
   have hpw := hparams .weights
   have hpx := hparams .input
   have hpb := hparams .bias
@@ -73,17 +58,10 @@ theorem baseLoading_correct (program : List (Instruction Register)) (ctx : Execu
   have h₆ := hcode 6 (by simp [baseLoading])
   have h₇ := hcode 7 (by simp [baseLoading])
   simp [baseLoading] at h₀ h₁ h₂ h₃ h₄ h₅ h₆ h₇
-  refine ⟨finalState args buffers initial, ?_, ?_⟩
-  · simp [run, step, baseLoading, h₀, h₁, h₂, h₃, h₄, h₅, h₆, h₇,
-      Instruction.execute, Operand64.read, State.write64Next, finalState,
-      hactive, hpw, hpx, hpb, hpy, hw, hx, hb, hy, Nat.add_assoc]
-  · constructor
-    · simp [finalState, State.write64Next, baseLoading, Nat.add_assoc]
-    · intro arg; cases arg <;> simp [finalState, State.write64Next, Argument.register]
-    · rfl
-    · intro r hw hx hb hy; simp [finalState, State.write64Next, hw, hx, hb, hy]
-    · rfl
-    · rfl
-    · rfl
+  simp [run, step, baseLoading, h₀, h₁, h₂, h₃, h₄, h₅, h₆, h₇,
+    Instruction.execute, Operand64.read, State.write64Next, basesLoaded,
+    hactive, hpw, hpx, hpb, hpy, hw, hx, hb, hy, Nat.add_assoc]
+  funext r
+  cases r <;> rfl
 
 end ReluLayer.PTX

@@ -43,11 +43,21 @@ in `kernels/relu_layer.ptx`. Source correspondence is checked by comparing the
 rendered formal instructions and configured launch against the PTX file; the
 comparison is an executable check, rather than a proved PTX parser.
 
-One state-form theorem accepts arbitrary initial scratch registers and
-predicates, an active thread, and an enclosing program containing the block at
-the initial PC. `CodeAt` records this instruction-placement condition. The
-context identity equals the selected thread identity. It preserves 64-bit registers, memory, predicates, and active status
-while computing the same owned row. Its named `RowResult` contract records
-these facts; `Thread.rowIndex` packages the natural row with its range proof.
+`rowSelection_correct` gives an exact state equation: executing the placed block
+returns `some (rowSelected t initial)`. The public `rowSelected` function performs
+the two identity writes and the word-level multiply-add write, advancing the PC
+with each write. Its unchanged fields express preservation of the 64-bit
+registers, memory, predicates and active status, and it updates only the three
+selected 32-bit registers. No separate row-result structure is needed.
+
+Execution requires an active thread, a matching context identity, and `CodeAt`
+for the three instructions at the initial PC. It succeeds even for a launch
+whose mathematical row does not fit in 32 bits; the arithmetic is modular.
+The separate `rowSelected_row` lemma uses the launch-size bound to identify
+the unsigned row word with the mathematical owned row. `Thread.rowIndex`
+packages that natural row with its tensor range proof. Kernel composition uses
+the state equation for execution and preservation, and the row lemma for
+address selection.
+
 The concrete launch and layout are defined together in `Layer.lean`; its output
 count agrees with the shared layer output size.

@@ -51,52 +51,57 @@ theorem kernel_correct (cfg : Launch) (layout : Layout) (hfit : cfg.rows ≤ 2 ^
     simpa only [kernelProgram, kernelSetup, List.append_assoc, List.nil_append, List.length_nil] using
       codeAt_append [] baseLoading (rowSelection cfg.threads ++ addressCalculation layout.inputWidth ++
         bodyProgram layout.inputWidth (kernelSetup cfg layout).length)
-  obtain ⟨bases, hbase, hb⟩ := baseLoading_correct (kernelProgram cfg layout) ctx args buffers initial
+  let bases := basesLoaded buffers initial
+  have hbase := baseLoading_correct (kernelProgram cfg layout) ctx args buffers initial
     hentry.active hentry.parameters hentry.conversions hbaseCode
+  have hbasepc : bases.pc = initial.pc + baseLoading.length := rfl
   have hrowCode : CodeAt (kernelProgram cfg layout) bases.pc (rowSelection cfg.threads) := by
-    rw [hb.pc, hentry.pc, Nat.zero_add]
+    rw [hbasepc, hentry.pc, Nat.zero_add]
     simpa only [kernelProgram, kernelSetup, List.append_assoc] using
       codeAt_append baseLoading (rowSelection cfg.threads)
         (addressCalculation layout.inputWidth ++
           bodyProgram layout.inputWidth (kernelSetup cfg layout).length)
-  obtain ⟨rowFinal, hrow, hrr⟩ :=
-    rowSelection_correct (kernelProgram cfg layout) cfg hfit t bases
-      (hb.active.trans hentry.active) ctx hid hrowCode
-  have hractive := hrr.active.trans (hb.active.trans hentry.active)
+  let rowFinal := rowSelected t bases
+  have hrow := rowSelection_correct (kernelProgram cfg layout) cfg t bases
+    hentry.active ctx hid hrowCode
+  have hractive : rowFinal.returned = false := hentry.active
+  have hrowpc : rowFinal.pc = bases.pc + (rowSelection cfg.threads).length := by
+    simp [rowFinal, rowSelected, State.writeNext, rowSelection, Nat.add_assoc]
   have haddressCode : CodeAt (kernelProgram cfg layout) rowFinal.pc
       (addressCalculation layout.inputWidth) := by
-    rw [hrr.pc, hb.pc, hentry.pc, Nat.zero_add]
+    rw [hrowpc, hbasepc, hentry.pc, Nat.zero_add]
     simpa only [kernelProgram, kernelSetup, List.length_append] using
       codeAt_append (baseLoading ++ rowSelection cfg.threads) (addressCalculation layout.inputWidth)
         (bodyProgram layout.inputWidth (kernelSetup cfg layout).length)
-  obtain ⟨addressFinal, haddress, ha⟩ := addressCalculation_exec (kernelProgram cfg layout)
+  let addressFinal := addressesComputed layout.inputWidth rowFinal
+  have haddress := addressCalculation_exec (kernelProgram cfg layout)
     layout.inputWidth ctx rowFinal hractive haddressCode
-  have hmemory : addressFinal.globalMemory = initial.globalMemory :=
-    ha.memory.trans (hrr.memory.trans hb.memory)
-  have hselected : (rowFinal.regs .row).toNat = t.row := hrr.row
-  have hweights : rowFinal.regs64 .weightBase = buffers .weights :=
-    congrFun hrr.regs64 .weightBase |>.trans (hb.bases .weights)
-  have hbias : rowFinal.regs64 .biasBase = buffers .bias :=
-    congrFun hrr.regs64 .biasBase |>.trans (hb.bases .bias)
-  have houtput : rowFinal.regs64 .outputBase = buffers .output :=
-    congrFun hrr.regs64 .outputBase |>.trans (hb.bases .output)
-  have hinput : rowFinal.regs64 .inputRead = buffers .input :=
-    congrFun hrr.regs64 .inputRead |>.trans (hb.bases .input)
+  have hmemory : addressFinal.globalMemory = initial.globalMemory := rfl
+  have haddresspc : addressFinal.pc = rowFinal.pc +
+      (addressCalculation layout.inputWidth).length := rfl
+  have hselected : (rowFinal.regs .row).toNat = t.row := rowSelected_row t bases hfit
   have hbodyEntry : BodyEntry layout cfg.rows buffers data
       t.rowIndex addressFinal := by
-    refine ⟨?_, ha.active.trans hractive, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, hractive, ?_, ?_, ?_, ?_⟩
     · simpa only [hmemory] using hentry.inputs
-    · rw [ha.weights, hweights, wideProduct_row _ _ layout.stride_fits, hselected]
+    · change buffers .weights +
+        wideProduct (rowFinal.regs .row) (BitVec.ofNat 32 (layout.inputWidth * fp32Bytes)) = _
+      rw [wideProduct_row _ _ layout.stride_fits, hselected]
       simp [weightAddress, Layout.rowStride]
-    · exact ha.inputRead.trans hinput
-    · rw [ha.bias, hbias, wideProduct_row _ _ (by decide : fp32Bytes < 2 ^ 32), hselected]
+    · rfl
+    · change buffers .bias +
+        wideProduct (rowFinal.regs .row) (BitVec.ofNat 32 fp32Bytes) = _
+      rw [wideProduct_row _ _ (by decide : fp32Bytes < 2 ^ 32), hselected]
       rfl
-    · rw [ha.output, houtput, wideProduct_row _ _ (by decide : fp32Bytes < 2 ^ 32), hselected]
+    · change buffers .output +
+        wideProduct (rowFinal.regs .row) (BitVec.ofNat 32 fp32Bytes) = _
+      rw [wideProduct_row _ _ (by decide : fp32Bytes < 2 ^ 32), hselected]
       rfl
   have hbodyCode : CodeAt (kernelProgram cfg layout) addressFinal.pc
       (bodyProgram layout.inputWidth addressFinal.pc) := by
     have hpc : addressFinal.pc = (kernelSetup cfg layout).length := by
-      simpa only [kernelSetup, List.length_append, hrr.pc, hb.pc, hentry.pc, Nat.zero_add] using ha.pc
+      simp only [kernelSetup, List.length_append, haddresspc, hrowpc, hbasepc,
+        hentry.pc, Nat.zero_add]
     rw [hpc]
     simpa only [kernelProgram, List.append_nil] using
       codeAt_append (kernelSetup cfg layout)
